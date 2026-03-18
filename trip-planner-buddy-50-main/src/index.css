@@ -1,0 +1,114 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 330 100% 98%;
+    --foreground: 26 11% 37%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 26 11% 37%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 26 11% 37%;
+
+    --primary: 31 30% 77%;
+    --primary-foreground: 26 11% 37%;
+
+    --secondary: 31 30% 77%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 30 19% 90%;
+    --muted-foreground: 26 11% 47%;
+
+    --accent: 30 19% 90%;
+    --accent-foreground: 26 11% 37%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 30 19% 85%;
+    --input: 30 19% 85%;
+    --ring: 31 30% 70%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 31 30% 77%;
+    --sidebar-foreground: 26 11% 37%;
+    --sidebar-primary: 26 11% 37%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 30 19% 90%;
+    --sidebar-accent-foreground: 26 11% 37%;
+    --sidebar-border: 30 19% 85%;
+    --sidebar-ring: 31 30% 70%;
+
+    --hero-overlay: linear-gradient(to top, hsla(26, 11%, 20%, 0.75) 0%, transparent 60%);
+    --gold-gradient: linear-gradient(135deg, hsl(31, 30%, 77%), hsl(30, 19%, 90%));
+    --navy-gradient: linear-gradient(135deg, hsl(26, 11%, 37%), hsl(31, 30%, 60%));
+  }
+
+  .dark {
+    --background: 26 15% 10%;
+    --foreground: 30 19% 90%;
+    --card: 26 15% 14%;
+    --card-foreground: 30 19% 90%;
+    --popover: 26 15% 14%;
+    --popover-foreground: 30 19% 90%;
+    --primary: 31 30% 77%;
+    --primary-foreground: 26 11% 37%;
+    --secondary: 26 15% 25%;
+    --secondary-foreground: 30 19% 90%;
+    --muted: 26 15% 18%;
+    --muted-foreground: 30 15% 55%;
+    --accent: 31 30% 77%;
+    --accent-foreground: 26 11% 37%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 26 15% 22%;
+    --input: 26 15% 22%;
+    --ring: 31 30% 70%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-family: 'Noto Sans TC', sans-serif;
+  }
+}
+
+@layer utilities {
+  .text-gold-gradient {
+    background: var(--gold-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .bg-gold-gradient {
+    background: var(--gold-gradient);
+  }
+
+  .bg-navy-gradient {
+    background: var(--navy-gradient);
+  }
+
+  .bg-hero-overlay {
+    background: var(--hero-overlay);
+  }
+
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}

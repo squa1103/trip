@@ -1,0 +1,116 @@
+import { useState, useEffect } from 'react';
+import { X, Plus, Trash2 } from 'lucide-react';
+import { ShoppingItem } from '@/types/trip';
+
+interface Props {
+  open: boolean;
+  onClose: () => void;
+  shoppingList: ShoppingItem[];
+  onUpdate?: (list: ShoppingItem[]) => void;
+}
+
+const ShoppingModal = ({ open, onClose, shoppingList, onUpdate }: Props) => {
+  const [items, setItems] = useState<ShoppingItem[]>(shoppingList);
+
+  useEffect(() => {
+    setItems(shoppingList);
+  }, [shoppingList]);
+
+  useEffect(() => {
+    if (onUpdate) onUpdate(items);
+  }, [items]);
+
+  if (!open) return null;
+
+  const addItem = () => {
+    setItems((prev) => [
+      ...prev,
+      { id: Date.now().toString(), status: 'incomplete', name: '', location: '', price: 0 },
+    ]);
+  };
+
+  const updateItem = (id: string, field: keyof ShoppingItem, value: any) => {
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, [field]: value } : i)));
+  };
+
+  const deleteItem = (id: string) => {
+    setItems((prev) => prev.filter((i) => i.id !== id));
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-primary/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-card rounded-xl w-full max-w-3xl max-h-[85vh] overflow-y-auto shadow-2xl animate-slide-up" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-6 border-b border-border">
+          <h3 className="text-lg font-bold text-foreground">採購清單</h3>
+          <button onClick={onClose}><X className="h-5 w-5 text-muted-foreground hover:text-foreground" /></button>
+        </div>
+        <div className="p-6">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left">
+                  <th className="pb-2 text-muted-foreground font-medium w-28">狀態</th>
+                  <th className="pb-2 text-muted-foreground font-medium">名稱</th>
+                  <th className="pb-2 text-muted-foreground font-medium">購買地點</th>
+                  <th className="pb-2 text-muted-foreground font-medium w-24">定價</th>
+                  <th className="pb-2 text-muted-foreground font-medium w-12"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <tr key={item.id} className="border-b border-border/50">
+                    <td className="py-2">
+                      <select
+                        value={item.status}
+                        onChange={(e) => updateItem(item.id, 'status', e.target.value)}
+                        className="text-xs px-2 py-1 rounded border bg-background text-foreground"
+                      >
+                        <option value="incomplete">未完成</option>
+                        <option value="complete">已完成</option>
+                      </select>
+                    </td>
+                    <td className="py-2">
+                      <input
+                        value={item.name}
+                        onChange={(e) => updateItem(item.id, 'name', e.target.value)}
+                        className="w-full text-sm px-2 py-1 rounded border bg-background text-foreground outline-none focus:ring-1 focus:ring-ring"
+                        placeholder="品名"
+                      />
+                    </td>
+                    <td className="py-2">
+                      <input
+                        value={item.location}
+                        onChange={(e) => updateItem(item.id, 'location', e.target.value)}
+                        className="w-full text-sm px-2 py-1 rounded border bg-background text-foreground outline-none focus:ring-1 focus:ring-ring"
+                        placeholder="地點"
+                      />
+                    </td>
+                    <td className="py-2">
+                      <input
+                        type="number"
+                        value={item.price || ''}
+                        onChange={(e) => updateItem(item.id, 'price', Number(e.target.value))}
+                        className="w-full text-sm px-2 py-1 rounded border bg-background text-foreground outline-none focus:ring-1 focus:ring-ring"
+                        placeholder="0"
+                      />
+                    </td>
+                    <td className="py-2 text-center">
+                      <button onClick={() => deleteItem(item.id)} className="text-destructive hover:text-destructive/80">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <button onClick={addItem} className="mt-4 flex items-center gap-1 text-sm text-secondary hover:text-secondary/80 transition-colors">
+            <Plus className="h-4 w-4" /> 新增項目
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ShoppingModal;
