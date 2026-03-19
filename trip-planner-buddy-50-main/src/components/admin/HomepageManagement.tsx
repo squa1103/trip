@@ -7,12 +7,13 @@ type Slide = { id: string; imageUrl: string; title?: string };
 
 const STORAGE_BUCKET = 'homepage-media';
 const VIDEO_PATH = 'intro-video';
+const LOGO_PATH = 'site-logo';
 
 const HomepageManagement = () => {
   const [videoUrl, setVideoUrl] = useState(introVideoUrl);
   const [pendingVideoFile, setPendingVideoFile] = useState<File | null>(null);
   const [slides, setSlides] = useState<Slide[]>(mockCarouselSlides);
-  const [logoPreview, setLogoPreview] = useState<string | null>(() => localStorage.getItem('siteLogo'));
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -29,7 +30,7 @@ const HomepageManagement = () => {
       const { data, error } = await supabase
         .from('homepage_settings')
         .select('key, value')
-        .in('key', ['carousel_slides', 'intro_video']);
+        .in('key', ['carousel_slides', 'intro_video', 'site_logo']);
       if (error || hasUserInteractedRef.current) return;
       for (const row of data ?? []) {
         if (row.key === 'carousel_slides' && Array.isArray(row.value) && row.value.length > 0) {
@@ -38,6 +39,15 @@ const HomepageManagement = () => {
         if (row.key === 'intro_video' && typeof row.value === 'string' && row.value) {
           setVideoUrl(row.value);
         }
+        if (row.key === 'site_logo' && typeof row.value === 'string' && row.value) {
+          setLogoPreview(row.value);
+        }
+      }
+      // 若資料庫沒有 LOGO，沿用 localStorage（相容舊資料）
+      const hasLogoInRows = data?.some((r) => r.key === 'site_logo' && r.value);
+      if (!hasLogoInRows) {
+        const local = localStorage.getItem('siteLogo');
+        if (local) setLogoPreview(local);
       }
     };
     fetchSettings();
@@ -115,10 +125,34 @@ const HomepageManagement = () => {
     setIsSaving(true);
     setSaveError(null);
     try {
-      // Logo → localStorage
+      // Logo → 上傳到 Storage，再存 URL 到資料庫（正式站與 localhost 共用）
+      let logoUrlToSave: string | null = null;
+      if (logoPreview) {
+        if (logoPreview.startsWith('data:')) {
+          const res = await fetch(logoPreview);
+          const blob = await res.blob();
+          const ext = blob.type.split('/')[1] || 'png';
+          const fileName = `${LOGO_PATH}.${ext}`;
+          await supabase.storage.from(STORAGE_BUCKET).remove([`${LOGO_PATH}.png`, `${LOGO_PATH}.jpg`, `${LOGO_PATH}.jpeg`, `${LOGO_PATH}.webp`]);
+          const { error: upErr } = await supabase.storage
+            .from(STORAGE_BUCKET)
+            .upload(fileName, blob, { contentType: blob.type, upsert: true });
+          if (upErr) throw new Error(`LOGO 上傳失敗：${upErr.message}`);
+          const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(fileName);
+          logoUrlToSave = `${urlData.publicUrl}?t=${Date.now()}`;
+        } else {
+          logoUrlToSave = logoPreview;
+        }
+      } else {
+        await supabase.storage.from(STORAGE_BUCKET).remove([`${LOGO_PATH}.png`, `${LOGO_PATH}.jpg`, `${LOGO_PATH}.jpeg`, `${LOGO_PATH}.webp`]);
+      }
+      const { error: logoError } = await supabase
+        .from('homepage_settings')
+        .upsert({ key: 'site_logo', value: logoUrlToSave }, { onConflict: 'key' });
+      if (logoError) throw new Error(`LOGO 儲存失敗：${logoError.message}`);
       if (logoPreview) localStorage.setItem('siteLogo', logoPreview);
       else localStorage.removeItem('siteLogo');
-      window.dispatchEvent(new Event('logoUpdated'));
+      window.dispatchEvent(new CustomEvent('logoUpdated', { detail: { logoUrl: logoUrlToSave } }));
 
       // Video → Supabase Storage (only if a new file was selected)
       let finalVideoUrl = videoUrl;

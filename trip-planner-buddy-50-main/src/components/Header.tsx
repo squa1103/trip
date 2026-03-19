@@ -3,25 +3,72 @@ import { Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import SearchOverlay from './SearchOverlay';
 import { Trip } from '@/types/trip';
+import { supabase } from '@/lib/supabase';
 
 interface Props {
   trips?: Trip[];
 }
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 const Header = ({ trips = [] }: Props) => {
   const [searchOpen, setSearchOpen] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const stored = localStorage.getItem('siteLogo');
-    if (stored) setLogoUrl(stored);
+  const fetchLogo = async () => {
+    if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+      try {
+        const apiUrl = `${SUPABASE_URL.replace(/\/$/, '')}/rest/v1/homepage_settings?key=eq.site_logo&select=value`;
+        const res = await fetch(apiUrl, {
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+            Accept: 'application/json',
+          },
+          cache: 'no-store',
+        });
+        const data = await res.json();
+        const value = Array.isArray(data) && data[0] != null ? data[0].value : data?.value;
+        if (value != null && typeof value === 'string' && value.length > 0) {
+          setLogoUrl(value);
+          return;
+        }
+      } catch {
+        // 略過，改用下方 fallback
+      }
+    }
+    const { data } = await supabase
+      .from('homepage_settings')
+      .select('value')
+      .eq('key', 'site_logo')
+      .maybeSingle();
+    const urlOrData = data?.value;
+    if (urlOrData != null && typeof urlOrData === 'string' && urlOrData.length > 0) {
+      setLogoUrl(urlOrData);
+      return;
+    }
+    const local = localStorage.getItem('siteLogo');
+    if (local) setLogoUrl(local);
+  };
 
-    const handler = () => {
-      setLogoUrl(localStorage.getItem('siteLogo'));
+  useEffect(() => {
+    fetchLogo();
+    const retryId = setTimeout(fetchLogo, 1500);
+    const handler = (e: Event) => {
+      const url = (e as CustomEvent<{ logoUrl: string | null }>)?.detail?.logoUrl;
+      if (url !== undefined) {
+        setLogoUrl(url ?? null);
+      } else {
+        fetchLogo();
+      }
     };
     window.addEventListener('logoUpdated', handler);
-    return () => window.removeEventListener('logoUpdated', handler);
+    return () => {
+      clearTimeout(retryId);
+      window.removeEventListener('logoUpdated', handler);
+    };
   }, []);
 
   return (
