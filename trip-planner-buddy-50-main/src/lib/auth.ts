@@ -1,4 +1,21 @@
-import { supabase, supabaseAdmin } from './supabase';
+import { supabase } from './supabase';
+
+async function callAdminAuth<T>(body: object): Promise<T> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) {
+    throw new Error('請先登入');
+  }
+  const { data, error } = await supabase.functions.invoke('admin-auth', {
+    body,
+  });
+  if (error) {
+    throw new Error((data as { error?: string })?.error ?? error.message ?? '請求失敗');
+  }
+  if (data && typeof data === 'object' && 'error' in data && (data as { error?: string }).error) {
+    throw new Error((data as { error: string }).error);
+  }
+  return data as T;
+}
 
 export async function signIn(email: string, password: string) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -17,28 +34,28 @@ export async function getSession() {
 }
 
 export async function listUsers() {
-  const { data, error } = await supabaseAdmin.auth.admin.listUsers();
-  if (error) throw error;
-  return data.users;
+  const { users } = await callAdminAuth<{ users: Array<{ id: string; email?: string; created_at: string }> }>({ action: 'listUsers' });
+  return users;
 }
 
 export async function createUser(email: string, password: string) {
-  const { data, error } = await supabaseAdmin.auth.admin.createUser({
+  const { user } = await callAdminAuth<{ user: { id: string; email?: string; created_at: string } }>({
+    action: 'createUser',
     email,
     password,
-    email_confirm: true,
   });
-  if (error) throw error;
-  return data.user;
+  return user;
 }
 
 export async function updateUserPassword(userId: string, password: string) {
-  const { data, error } = await supabaseAdmin.auth.admin.updateUserById(userId, { password });
-  if (error) throw error;
-  return data.user;
+  const { user } = await callAdminAuth<{ user: { id: string; email?: string } }>({
+    action: 'updateUserPassword',
+    userId,
+    password,
+  });
+  return user;
 }
 
 export async function deleteUser(userId: string) {
-  const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
-  if (error) throw error;
+  await callAdminAuth<{ ok: boolean }>({ action: 'deleteUser', userId });
 }

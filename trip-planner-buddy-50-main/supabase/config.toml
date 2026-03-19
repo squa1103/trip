@@ -1,0 +1,3 @@
+# Edge Function admin-auth: 不在閘道驗證 JWT，改由 function 內用 getUser(token) 驗證
+[functions.admin-auth]
+verify_jwt = false

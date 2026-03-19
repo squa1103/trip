@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Upload, Trash2, Plus, Image, Video, Save, Check } from 'lucide-react';
 import { mockCarouselSlides, introVideoUrl } from '@/data/mockData';
-import { supabaseAdmin } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 
 type Slide = { id: string; imageUrl: string; title?: string };
 
@@ -26,7 +26,7 @@ const HomepageManagement = () => {
 
   useEffect(() => {
     const fetchSettings = async () => {
-      const { data, error } = await supabaseAdmin
+      const { data, error } = await supabase
         .from('homepage_settings')
         .select('key, value')
         .in('key', ['carousel_slides', 'intro_video']);
@@ -124,12 +124,12 @@ const HomepageManagement = () => {
       let finalVideoUrl = videoUrl;
       if (pendingVideoFile) {
         // Try uploading; if file already exists, remove it first then re-upload
-        let { error: uploadError } = await supabaseAdmin.storage
+        let { error: uploadError } = await supabase.storage
           .from(STORAGE_BUCKET)
           .upload(VIDEO_PATH, pendingVideoFile, { contentType: pendingVideoFile.type });
         if (uploadError?.message?.includes('already exists') || uploadError?.statusCode === '23505') {
-          await supabaseAdmin.storage.from(STORAGE_BUCKET).remove([VIDEO_PATH]);
-          const retry = await supabaseAdmin.storage
+          await supabase.storage.from(STORAGE_BUCKET).remove([VIDEO_PATH]);
+          const retry = await supabase.storage
             .from(STORAGE_BUCKET)
             .upload(VIDEO_PATH, pendingVideoFile, { contentType: pendingVideoFile.type });
           uploadError = retry.error;
@@ -140,7 +140,7 @@ const HomepageManagement = () => {
             : uploadError.message;
           throw new Error(`影片上傳失敗：${hint}`);
         }
-        const { data: urlData } = supabaseAdmin.storage
+        const { data: urlData } = supabase.storage
           .from(STORAGE_BUCKET)
           .getPublicUrl(VIDEO_PATH);
         finalVideoUrl = `${urlData.publicUrl}?t=${Date.now()}`;
@@ -154,10 +154,10 @@ const HomepageManagement = () => {
 
       // Video URL + Carousel → Supabase DB
       const [videoResult, slidesResult] = await Promise.all([
-        supabaseAdmin
+        supabase
           .from('homepage_settings')
           .upsert({ key: 'intro_video', value: finalVideoUrl }, { onConflict: 'key' }),
-        supabaseAdmin
+        supabase
           .from('homepage_settings')
           .upsert({ key: 'carousel_slides', value: slides }, { onConflict: 'key' }),
       ]);
