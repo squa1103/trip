@@ -1,21 +1,25 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { mockAdminUsers } from '@/data/mockData';
+import { signIn } from '@/lib/auth';
 
 const AdminLogin = () => {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const user = mockAdminUsers.find((u) => u.username === username && u.password === password);
-    if (user) {
-      sessionStorage.setItem('adminLoggedIn', 'true');
+    setError('');
+    setLoading(true);
+    try {
+      await signIn(email, password);
       navigate('/admin');
-    } else {
-      setError('帳號密碼錯誤');
+    } catch {
+      setError('帳號或密碼錯誤');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -25,12 +29,14 @@ const AdminLogin = () => {
         <h1 className="text-3xl font-bold text-center text-gold-gradient mb-8">後台管理</h1>
         <form onSubmit={handleLogin} className="bg-card rounded-xl p-8 shadow-2xl space-y-5">
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1.5">帳號</label>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Email</label>
             <input
-              value={username}
-              onChange={(e) => { setUsername(e.target.value); setError(''); }}
+              type="email"
+              value={email}
+              onChange={(e) => { setEmail(e.target.value); setError(''); }}
               className="w-full px-4 py-2.5 rounded-lg border bg-background text-foreground outline-none focus:ring-2 focus:ring-ring"
-              placeholder="請輸入帳號"
+              placeholder="請輸入 Email"
+              required
             />
           </div>
           <div>
@@ -41,11 +47,16 @@ const AdminLogin = () => {
               onChange={(e) => { setPassword(e.target.value); setError(''); }}
               className="w-full px-4 py-2.5 rounded-lg border bg-background text-foreground outline-none focus:ring-2 focus:ring-ring"
               placeholder="請輸入密碼"
+              required
             />
           </div>
           {error && <p className="text-destructive text-sm text-center">{error}</p>}
-          <button type="submit" className="w-full py-2.5 rounded-lg bg-gold-gradient text-primary font-medium hover:opacity-90 transition-opacity">
-            登入
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-2.5 rounded-lg bg-gold-gradient text-primary font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
+          >
+            {loading ? '登入中...' : '登入'}
           </button>
         </form>
       </div>

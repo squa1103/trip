@@ -2,8 +2,13 @@ import { useState, useEffect } from 'react';
 import { Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import SearchOverlay from './SearchOverlay';
+import { Trip } from '@/types/trip';
 
-const Header = () => {
+interface Props {
+  trips?: Trip[];
+}
+
+const Header = ({ trips = [] }: Props) => {
   const [searchOpen, setSearchOpen] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -47,7 +52,7 @@ const Header = () => {
           </div>
         </div>
       </header>
-      <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />
+      <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} trips={trips} />
     </>
   );
 };

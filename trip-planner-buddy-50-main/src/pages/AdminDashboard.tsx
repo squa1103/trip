@@ -4,6 +4,7 @@ import { Users, Home, MapPinned, LogOut, ExternalLink } from 'lucide-react';
 import AccountManagement from '@/components/admin/AccountManagement';
 import HomepageManagement from '@/components/admin/HomepageManagement';
 import TripManagement from '@/components/admin/TripManagement';
+import { getSession, signOut } from '@/lib/auth';
 
 type AdminPage = 'accounts' | 'homepage' | 'trips';
 
@@ -16,18 +17,30 @@ const menuItems: { key: AdminPage; label: string; icon: React.ElementType }[] = 
 const AdminDashboard = () => {
   const [activePage, setActivePage] = useState<AdminPage>('accounts');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [checking, setChecking] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!sessionStorage.getItem('adminLoggedIn')) {
-      navigate('/admin/login');
-    }
+    getSession().then((session) => {
+      if (!session) {
+        navigate('/admin/login');
+      }
+      setChecking(false);
+    });
   }, [navigate]);
 
-  const handleLogout = () => {
-    sessionStorage.removeItem('adminLoggedIn');
+  const handleLogout = async () => {
+    await signOut();
     navigate('/');
   };
+
+  if (checking) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground">驗證中...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex">

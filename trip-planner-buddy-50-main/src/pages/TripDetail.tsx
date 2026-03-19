@@ -1,27 +1,58 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Plus, Plane, Hotel, Luggage, ShoppingCart, X, ExternalLink, Check } from 'lucide-react';
-import { mockTrips } from '@/data/mockData';
-import { ActivityCard as ActivityCardType, Trip } from '@/types/trip';
+import { ActivityCard as ActivityCardType, TodoItem, LuggageCategory, ShoppingItem } from '@/types/trip';
 import Header from '@/components/Header';
 import ActivityDetailModal from '@/components/trip/ActivityDetailModal';
 import LuggageModal from '@/components/trip/LuggageModal';
 import ShoppingModal from '@/components/trip/ShoppingModal';
+import { fetchTripById, updateTrip } from '@/lib/trips';
 
 const TripDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const trip = mockTrips.find((t) => t.id === id);
+  const queryClient = useQueryClient();
+
+  const { data: trip, isLoading, isError } = useQuery({
+    queryKey: ['trip', id],
+    queryFn: () => fetchTripById(id!),
+    enabled: !!id,
+  });
+
+  const mutation = useMutation({
+    mutationFn: updateTrip,
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['trip', id], updated);
+    },
+  });
+
   const [selectedActivity, setSelectedActivity] = useState<ActivityCardType | null>(null);
   const [luggageOpen, setLuggageOpen] = useState(false);
   const [shoppingOpen, setShoppingOpen] = useState(false);
-  const [todos, setTodos] = useState(trip?.todos || []);
+  const [todos, setTodos] = useState<TodoItem[]>([]);
   const [newTodo, setNewTodo] = useState('');
   const [showTodoInput, setShowTodoInput] = useState(false);
-  const [luggageList, setLuggageList] = useState(trip?.luggageList || []);
-  const [shoppingList, setShoppingList] = useState(trip?.shoppingList || []);
+  const [luggageList, setLuggageList] = useState<LuggageCategory[]>([]);
+  const [shoppingList, setShoppingList] = useState<ShoppingItem[]>([]);
 
-  if (!trip) {
+  useEffect(() => {
+    if (trip) {
+      setTodos(trip.todos);
+      setLuggageList(trip.luggageList);
+      setShoppingList(trip.shoppingList);
+    }
+  }, [trip]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground">載入中...</p>
+      </div>
+    );
+  }
+
+  if (isError || !trip) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <p className="text-muted-foreground">找不到此行程</p>
@@ -29,15 +60,29 @@ const TripDetail = () => {
     );
   }
 
-  const toggleTodo = (id: string) => {
-    setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, checked: !t.checked } : t)));
+  const toggleTodo = (todoId: string) => {
+    const next = todos.map((t) => (t.id === todoId ? { ...t, checked: !t.checked } : t));
+    setTodos(next);
+    mutation.mutate({ ...trip, todos: next });
   };
 
   const addTodo = () => {
     if (!newTodo.trim()) return;
-    setTodos((prev) => [...prev, { id: Date.now().toString(), text: newTodo.trim(), checked: false }]);
+    const next = [...todos, { id: Date.now().toString(), text: newTodo.trim(), checked: false }];
+    setTodos(next);
     setNewTodo('');
     setShowTodoInput(false);
+    mutation.mutate({ ...trip, todos: next });
+  };
+
+  const handleLuggageUpdate = (next: LuggageCategory[]) => {
+    setLuggageList(next);
+    mutation.mutate({ ...trip, luggageList: next });
+  };
+
+  const handleShoppingUpdate = (next: ShoppingItem[]) => {
+    setShoppingList(next);
+    mutation.mutate({ ...trip, shoppingList: next });
   };
 
   const renderAddress = (address: string) => {
@@ -247,13 +292,13 @@ const TripDetail = () => {
         open={luggageOpen}
         onClose={() => setLuggageOpen(false)}
         luggageList={luggageList}
-        onUpdate={setLuggageList}
+        onUpdate={handleLuggageUpdate}
       />
       <ShoppingModal
         open={shoppingOpen}
         onClose={() => setShoppingOpen(false)}
         shoppingList={shoppingList}
-        onUpdate={setShoppingList}
+        onUpdate={handleShoppingUpdate}
       />
     </div>
   );

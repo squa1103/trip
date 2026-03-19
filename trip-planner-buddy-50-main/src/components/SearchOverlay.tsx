@@ -1,21 +1,22 @@
 import { useState } from 'react';
 import { Search, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { mockTrips } from '@/data/mockData';
+import { Trip } from '@/types/trip';
 
 interface SearchOverlayProps {
   open: boolean;
   onClose: () => void;
+  trips?: Trip[];
 }
 
-const SearchOverlay = ({ open, onClose }: SearchOverlayProps) => {
+const SearchOverlay = ({ open, onClose, trips = [] }: SearchOverlayProps) => {
   const [query, setQuery] = useState('');
   const navigate = useNavigate();
 
   if (!open) return null;
 
   const results = query.trim()
-    ? mockTrips.filter(
+    ? trips.filter(
         (t) =>
           t.title.includes(query) ||
           t.dailyItineraries.some((d) =>

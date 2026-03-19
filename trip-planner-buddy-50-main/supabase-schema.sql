@@ -1,0 +1,42 @@
+-- Run this in your Supabase project's SQL Editor
+
+-- Enable UUID extension (already enabled by default in Supabase)
+-- create extension if not exists "uuid-ossp";
+
+create table if not exists trips (
+  id            uuid primary key default gen_random_uuid(),
+  title         text not null default '',
+  cover_image   text not null default '',
+  start_date    text not null default '',
+  end_date      text not null default '',
+  category      text not null default 'domestic' check (category in ('domestic', 'international')),
+  status        text not null default 'planning' check (status in ('planning', 'ongoing', 'completed')),
+  todos         jsonb not null default '[]',
+  flights       jsonb not null default '{"departure":{},"return":{}}',
+  hotels        jsonb not null default '[]',
+  daily_itineraries jsonb not null default '[]',
+  luggage_list  jsonb not null default '[]',
+  shopping_list jsonb not null default '[]',
+  other_notes   text not null default '',
+  created_at    timestamptz not null default now()
+);
+
+-- Allow anyone to read trips (public front-end)
+alter table trips enable row level security;
+
+create policy "Public read trips"
+  on trips for select
+  using (true);
+
+-- Only authenticated users (admins) can write
+create policy "Auth users can insert trips"
+  on trips for insert
+  with check (auth.role() = 'authenticated');
+
+create policy "Auth users can update trips"
+  on trips for update
+  using (auth.role() = 'authenticated');
+
+create policy "Auth users can delete trips"
+  on trips for delete
+  using (auth.role() = 'authenticated');

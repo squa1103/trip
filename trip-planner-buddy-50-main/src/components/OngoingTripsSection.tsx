@@ -1,9 +1,13 @@
-import { mockTrips } from '@/data/mockData';
 import TripCard from './TripCard';
 import { Plane } from 'lucide-react';
+import { Trip } from '@/types/trip';
 
-const OngoingTripsSection = () => {
-  const ongoingTrips = mockTrips.filter((t) => t.status === 'ongoing');
+interface Props {
+  trips: Trip[];
+}
+
+const OngoingTripsSection = ({ trips }: Props) => {
+  const ongoingTrips = trips.filter((t) => t.status === 'ongoing');
 
   if (ongoingTrips.length === 0) return null;
 

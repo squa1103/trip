@@ -8,6 +8,7 @@ interface Props {
   trip: Trip;
   onSave: (trip: Trip) => void;
   onCancel: () => void;
+  isSaving?: boolean;
 }
 
 const fileToDataUrl = (file: File): Promise<string> =>
@@ -17,7 +18,7 @@ const fileToDataUrl = (file: File): Promise<string> =>
     reader.readAsDataURL(file);
   });
 
-const TripEditor = ({ trip: initial, onSave, onCancel }: Props) => {
+const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false }: Props) => {
   const [trip, setTrip] = useState<Trip>({ ...initial });
   const coverInputRef = useRef<HTMLInputElement>(null);
   const [luggageOpen, setLuggageOpen] = useState(false);
@@ -184,8 +185,12 @@ const TripEditor = ({ trip: initial, onSave, onCancel }: Props) => {
           <ArrowLeft className="h-5 w-5 text-foreground" />
         </button>
         <h2 className="text-xl font-bold text-foreground flex-1">編輯行程</h2>
-        <button onClick={() => onSave(trip)} className="px-6 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium hover:opacity-90">
-          儲存
+        <button
+          onClick={() => onSave(trip)}
+          disabled={isSaving}
+          className="px-6 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium hover:opacity-90 disabled:opacity-60"
+        >
+          {isSaving ? '儲存中...' : '儲存'}
         </button>
       </div>
 

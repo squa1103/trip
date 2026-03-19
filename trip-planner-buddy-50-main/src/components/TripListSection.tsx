@@ -1,9 +1,9 @@
 import { useState, useRef } from 'react';
 import { ChevronLeft, ChevronRight, ChevronDown, MapPin } from 'lucide-react';
 
-import { mockTrips } from '@/data/mockData';
 import TripCard from './TripCard';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Trip } from '@/types/trip';
 
 type Category = 'domestic-planning' | 'domestic-ongoing' | 'domestic-completed' | 'international-planning' | 'international-ongoing' | 'international-completed';
 
@@ -31,13 +31,17 @@ const categoryGroups: CategoryGroup[] = [
   },
 ];
 
-const TripListSection = () => {
+interface Props {
+  trips: Trip[];
+}
+
+const TripListSection = ({ trips }: Props) => {
   const [activeCategory, setActiveCategory] = useState<Category>('domestic-planning');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const allItems = categoryGroups.flatMap((g) => g.items);
   const cat = allItems.find((c) => c.key === activeCategory)!;
-  const filtered = mockTrips.filter((t) => t.category === cat.category && t.status === cat.status);
+  const filtered = trips.filter((t) => t.category === cat.category && t.status === cat.status);
 
   const scroll = (dir: number) => {
     scrollRef.current?.scrollBy({ left: dir * 260, behavior: 'smooth' });
