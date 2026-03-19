@@ -16,25 +16,24 @@ const ShoppingModal = ({ open, onClose, shoppingList, onUpdate }: Props) => {
     setItems(shoppingList);
   }, [shoppingList]);
 
-  useEffect(() => {
-    if (onUpdate) onUpdate(items);
-  }, [items]);
-
   if (!open) return null;
 
   const addItem = () => {
-    setItems((prev) => [
-      ...prev,
-      { id: Date.now().toString(), status: 'incomplete', name: '', location: '', price: 0 },
-    ]);
+    const next = [...items, { id: Date.now().toString(), status: 'incomplete' as const, name: '', location: '', price: 0 }];
+    setItems(next);
+    onUpdate?.(next);
   };
 
   const updateItem = (id: string, field: keyof ShoppingItem, value: any) => {
-    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, [field]: value } : i)));
+    const next = items.map((i) => (i.id === id ? { ...i, [field]: value } : i));
+    setItems(next);
+    onUpdate?.(next);
   };
 
   const deleteItem = (id: string) => {
-    setItems((prev) => prev.filter((i) => i.id !== id));
+    const next = items.filter((i) => i.id !== id);
+    setItems(next);
+    onUpdate?.(next);
   };
 
   return (

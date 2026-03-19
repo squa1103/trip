@@ -302,8 +302,8 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false }: Props
             <input value={hotel.name} onChange={(e) => updateHotel(hotel.id, 'name', e.target.value)} placeholder="飯店名稱" className="px-2 py-1.5 rounded border bg-background text-foreground text-sm outline-none" />
             <input type="date" value={hotel.checkIn} onChange={(e) => updateHotel(hotel.id, 'checkIn', e.target.value)} className="px-2 py-1.5 rounded border bg-background text-foreground text-sm outline-none" />
             <input type="date" value={hotel.checkOut} onChange={(e) => updateHotel(hotel.id, 'checkOut', e.target.value)} className="px-2 py-1.5 rounded border bg-background text-foreground text-sm outline-none" />
-            <div className="flex gap-2">
-              <input value={hotel.address} onChange={(e) => updateHotel(hotel.id, 'address', e.target.value)} placeholder="Google Map URL" className="flex-1 px-2 py-1.5 rounded border bg-background text-foreground text-sm outline-none" />
+            <div className="flex gap-2 min-w-0">
+              <input value={hotel.address} onChange={(e) => updateHotel(hotel.id, 'address', e.target.value)} placeholder="Google Map URL" className="flex-1 min-w-0 px-2 py-1.5 rounded border bg-background text-foreground text-sm outline-none overflow-hidden" onWheel={(e) => { e.currentTarget.scrollLeft += e.deltaY; e.preventDefault(); }} />
               <button onClick={() => update('hotels', trip.hotels.filter((h) => h.id !== hotel.id))} className="text-destructive shrink-0">
                 <Trash2 className="h-4 w-4" />
               </button>
@@ -375,7 +375,7 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false }: Props
                       </button>
                     </div>
                     <input value={act.title} onChange={(e) => updateActivity(dayIdx, act.id, 'title', e.target.value)} placeholder="標題" className="w-full px-2 py-1 rounded border bg-background text-foreground outline-none text-sm" />
-                    <input value={act.address} onChange={(e) => updateActivity(dayIdx, act.id, 'address', e.target.value)} placeholder="Google Map URL" className="w-full px-2 py-1 rounded border bg-background text-foreground outline-none text-sm" />
+                    <input value={act.address} onChange={(e) => updateActivity(dayIdx, act.id, 'address', e.target.value)} placeholder="Google Map URL" className="w-full px-2 py-1 rounded border bg-background text-foreground outline-none text-sm" onWheel={(e) => { e.currentTarget.scrollLeft += e.deltaY; e.preventDefault(); }} />
                     <div>
                       <input type="file" accept="image/*" onChange={(e) => handleActivityImageUpload(dayIdx, act.id, e)} className="hidden" id={`act-img-${act.id}`} />
                       <label htmlFor={`act-img-${act.id}`} className="w-full flex items-center gap-1 px-2 py-1 rounded border border-dashed bg-background text-muted-foreground text-sm cursor-pointer hover:border-secondary hover:text-secondary transition-colors">
