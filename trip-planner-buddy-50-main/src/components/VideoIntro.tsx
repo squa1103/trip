@@ -1,11 +1,26 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { introVideoUrl } from '@/data/mockData';
+import { supabase } from '@/lib/supabase';
 
 const VideoIntro = () => {
   const [show, setShow] = useState(true);
   const [fadeOut, setFadeOut] = useState(false);
-  const navigate = useNavigate();
+  const [src, setSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase
+      .from('homepage_settings')
+      .select('value')
+      .eq('key', 'intro_video')
+      .single()
+      .then(({ data, error }) => {
+        if (!error && data?.value && typeof data.value === 'string') {
+          setSrc(data.value);
+        } else {
+          setSrc(introVideoUrl);
+        }
+      });
+  }, []);
 
   const handleEnd = useCallback(() => {
     setFadeOut(true);
@@ -13,11 +28,12 @@ const VideoIntro = () => {
   }, []);
 
   useEffect(() => {
+    if (!src) return;
     const timer = setTimeout(handleEnd, 6000);
     return () => clearTimeout(timer);
-  }, [handleEnd]);
+  }, [handleEnd, src]);
 
-  if (!show) return null;
+  if (!show || src === null) return null;
 
   return (
     <div
@@ -31,7 +47,7 @@ const VideoIntro = () => {
         className="w-full h-full object-cover animate-zoom-in-slow"
         onEnded={handleEnd}
       >
-        <source src={introVideoUrl} type="video/mp4" />
+        <source src={src} type="video/mp4" />
       </video>
       <button
         onClick={handleEnd}

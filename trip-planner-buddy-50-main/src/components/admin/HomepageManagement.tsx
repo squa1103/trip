@@ -1,14 +1,50 @@
-import { useState, useRef } from 'react';
-import { Upload, Trash2, Plus, Image, Video } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Upload, Trash2, Plus, Image, Video, Save, Check } from 'lucide-react';
 import { mockCarouselSlides, introVideoUrl } from '@/data/mockData';
+import { supabaseAdmin } from '@/lib/supabase';
+
+type Slide = { id: string; imageUrl: string; title?: string };
+
+const STORAGE_BUCKET = 'homepage-media';
+const VIDEO_PATH = 'intro-video';
 
 const HomepageManagement = () => {
   const [videoUrl, setVideoUrl] = useState(introVideoUrl);
-  const [slides, setSlides] = useState(mockCarouselSlides);
+  const [pendingVideoFile, setPendingVideoFile] = useState<File | null>(null);
+  const [slides, setSlides] = useState<Slide[]>(mockCarouselSlides);
   const [logoPreview, setLogoPreview] = useState<string | null>(() => localStorage.getItem('siteLogo'));
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const slideInputRef = useRef<HTMLInputElement>(null);
+  const blobUrlRef = useRef<string | null>(null);
+  // Prevents the initial Supabase fetch from overwriting state after the user has made changes.
+  const hasUserInteractedRef = useRef(false);
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      const { data, error } = await supabaseAdmin
+        .from('homepage_settings')
+        .select('key, value')
+        .in('key', ['carousel_slides', 'intro_video']);
+      if (error || hasUserInteractedRef.current) return;
+      for (const row of data ?? []) {
+        if (row.key === 'carousel_slides' && Array.isArray(row.value) && row.value.length > 0) {
+          setSlides(row.value as Slide[]);
+        }
+        if (row.key === 'intro_video' && typeof row.value === 'string' && row.value) {
+          setVideoUrl(row.value);
+        }
+      }
+    };
+    fetchSettings();
+    return () => {
+      if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+    };
+  }, []);
 
   const fileToDataUrl = (file: File): Promise<string> =>
     new Promise((resolve) => {
@@ -17,26 +53,46 @@ const HomepageManagement = () => {
       reader.readAsDataURL(file);
     });
 
+  const markInteracted = () => {
+    hasUserInteractedRef.current = true;
+    setHasUnsavedChanges(true);
+    setSaveSuccess(false);
+    setSaveError(null);
+  };
+
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const dataUrl = await fileToDataUrl(file);
-    localStorage.setItem('siteLogo', dataUrl);
     setLogoPreview(dataUrl);
-    window.dispatchEvent(new Event('logoUpdated'));
+    markInteracted();
   };
 
   const removeLogo = () => {
-    localStorage.removeItem('siteLogo');
     setLogoPreview(null);
-    window.dispatchEvent(new Event('logoUpdated'));
+    markInteracted();
   };
 
-  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const dataUrl = await fileToDataUrl(file);
-    setVideoUrl(dataUrl);
+    if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+    const blobUrl = URL.createObjectURL(file);
+    blobUrlRef.current = blobUrl;
+    setPendingVideoFile(file);
+    setVideoUrl(blobUrl);
+    markInteracted();
+    if (videoInputRef.current) videoInputRef.current.value = '';
+  };
+
+  const handleVideoRemove = () => {
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current);
+      blobUrlRef.current = null;
+    }
+    setPendingVideoFile(null);
+    setVideoUrl('');
+    markInteracted();
   };
 
   const handleSlideUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -46,11 +102,105 @@ const HomepageManagement = () => {
       const dataUrl = await fileToDataUrl(file);
       setSlides((prev) => [...prev, { id: Date.now().toString() + Math.random(), imageUrl: dataUrl }]);
     }
+    markInteracted();
     if (slideInputRef.current) slideInputRef.current.value = '';
   };
 
+  const removeSlide = (id: string) => {
+    setSlides((prev) => prev.filter((s) => s.id !== id));
+    markInteracted();
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      // Logo → localStorage
+      if (logoPreview) localStorage.setItem('siteLogo', logoPreview);
+      else localStorage.removeItem('siteLogo');
+      window.dispatchEvent(new Event('logoUpdated'));
+
+      // Video → Supabase Storage (only if a new file was selected)
+      let finalVideoUrl = videoUrl;
+      if (pendingVideoFile) {
+        // Try uploading; if file already exists, remove it first then re-upload
+        let { error: uploadError } = await supabaseAdmin.storage
+          .from(STORAGE_BUCKET)
+          .upload(VIDEO_PATH, pendingVideoFile, { contentType: pendingVideoFile.type });
+        if (uploadError?.message?.includes('already exists') || uploadError?.statusCode === '23505') {
+          await supabaseAdmin.storage.from(STORAGE_BUCKET).remove([VIDEO_PATH]);
+          const retry = await supabaseAdmin.storage
+            .from(STORAGE_BUCKET)
+            .upload(VIDEO_PATH, pendingVideoFile, { contentType: pendingVideoFile.type });
+          uploadError = retry.error;
+        }
+        if (uploadError) {
+          const hint = uploadError.message?.includes('Bucket not found') || uploadError.statusCode === '404'
+            ? '請先在 Supabase Dashboard → Storage 建立名為「homepage-media」的公開 bucket'
+            : uploadError.message;
+          throw new Error(`影片上傳失敗：${hint}`);
+        }
+        const { data: urlData } = supabaseAdmin.storage
+          .from(STORAGE_BUCKET)
+          .getPublicUrl(VIDEO_PATH);
+        finalVideoUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+        if (blobUrlRef.current) {
+          URL.revokeObjectURL(blobUrlRef.current);
+          blobUrlRef.current = null;
+        }
+        setPendingVideoFile(null);
+        setVideoUrl(finalVideoUrl);
+      }
+
+      // Video URL + Carousel → Supabase DB
+      const [videoResult, slidesResult] = await Promise.all([
+        supabaseAdmin
+          .from('homepage_settings')
+          .upsert({ key: 'intro_video', value: finalVideoUrl }, { onConflict: 'key' }),
+        supabaseAdmin
+          .from('homepage_settings')
+          .upsert({ key: 'carousel_slides', value: slides }, { onConflict: 'key' }),
+      ]);
+
+      if (videoResult.error) throw new Error(`影片網址儲存失敗：${videoResult.error.message}`);
+      if (slidesResult.error) throw new Error(`輪播圖儲存失敗：${slidesResult.error.message}`);
+
+      window.dispatchEvent(new Event('carouselUpdated'));
+      setHasUnsavedChanges(false);
+      setSaveSuccess(true);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : '儲存失敗，請重試');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      {/* Global save bar */}
+      <div className="flex items-center justify-between bg-card rounded-xl px-5 py-3 shadow-sm">
+        <span className={`text-sm ${saveError ? 'text-destructive' : hasUnsavedChanges ? 'text-amber-500' : 'text-muted-foreground'}`}>
+          {saveError ?? (hasUnsavedChanges ? '尚有未儲存的變更' : saveSuccess ? '所有變更已儲存' : '')}
+        </span>
+        <button
+          onClick={handleSave}
+          disabled={!hasUnsavedChanges || isSaving}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            hasUnsavedChanges
+              ? 'bg-primary text-primary-foreground hover:opacity-90'
+              : 'bg-muted text-muted-foreground cursor-default'
+          }`}
+        >
+          {isSaving ? (
+            <><Save className="h-4 w-4 animate-pulse" /> 儲存中...</>
+          ) : saveSuccess && !hasUnsavedChanges ? (
+            <><Check className="h-4 w-4" /> 已儲存</>
+          ) : (
+            <><Save className="h-4 w-4" /> 儲存</>
+          )}
+        </button>
+      </div>
+
       {/* Logo */}
       <div className="bg-card rounded-xl p-6 shadow-sm">
         <h3 className="font-semibold text-foreground mb-4">網站 LOGO</h3>
@@ -93,13 +243,16 @@ const HomepageManagement = () => {
           </button>
           {videoUrl && (
             <button
-              onClick={() => setVideoUrl('')}
+              onClick={handleVideoRemove}
               className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm text-destructive hover:bg-destructive/10 transition-colors"
             >
               <Trash2 className="h-4 w-4" /> 移除
             </button>
           )}
         </div>
+        {pendingVideoFile && (
+          <p className="mt-2 text-xs text-muted-foreground">已選擇：{pendingVideoFile.name}（儲存後上傳至雲端）</p>
+        )}
         {videoUrl && (
           <video src={videoUrl} className="mt-4 w-full max-w-md rounded-lg" controls muted />
         )}
@@ -111,7 +264,10 @@ const HomepageManagement = () => {
           <h3 className="font-semibold text-foreground">輪播大圖 (1200×800)</h3>
           <div>
             <input ref={slideInputRef} type="file" accept="image/*" multiple onChange={handleSlideUpload} className="hidden" />
-            <button onClick={() => slideInputRef.current?.click()} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground text-sm hover:opacity-90">
+            <button
+              onClick={() => slideInputRef.current?.click()}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground text-sm hover:opacity-90"
+            >
               <Plus className="h-4 w-4" /> 上傳圖片
             </button>
           </div>
@@ -121,7 +277,7 @@ const HomepageManagement = () => {
             <div key={slide.id} className="relative group rounded-lg overflow-hidden aspect-[3/2]">
               <img src={slide.imageUrl} alt="" className="w-full h-full object-cover" />
               <button
-                onClick={() => setSlides((p) => p.filter((s) => s.id !== slide.id))}
+                onClick={() => removeSlide(slide.id)}
                 className="absolute top-2 right-2 w-7 h-7 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
               >
                 <Trash2 className="h-3.5 w-3.5" />

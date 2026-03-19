@@ -1,10 +1,32 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { mockCarouselSlides } from '@/data/mockData';
+import { supabase } from '@/lib/supabase';
+
+type Slide = { id: string; imageUrl: string; title?: string };
 
 const HeroCarousel = () => {
   const [current, setCurrent] = useState(0);
-  const slides = mockCarouselSlides;
+  const [slides, setSlides] = useState<Slide[]>(mockCarouselSlides);
+
+  const fetchSlides = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('homepage_settings')
+      .select('value')
+      .eq('key', 'carousel_slides')
+      .single();
+    if (!error && data?.value && Array.isArray(data.value) && data.value.length > 0) {
+      setSlides(data.value as Slide[]);
+      setCurrent(0);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSlides();
+    const handleUpdate = () => fetchSlides();
+    window.addEventListener('carouselUpdated', handleUpdate);
+    return () => window.removeEventListener('carouselUpdated', handleUpdate);
+  }, [fetchSlides]);
 
   const next = useCallback(() => setCurrent((c) => (c + 1) % slides.length), [slides.length]);
   const prev = useCallback(() => setCurrent((c) => (c - 1 + slides.length) % slides.length), [slides.length]);
