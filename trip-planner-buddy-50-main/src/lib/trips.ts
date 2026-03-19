@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { Trip } from '@/types/trip';
+import { Trip, LuggageCategory, ShoppingItem } from '@/types/trip';
 
 // Database row shape (snake_case)
 export interface TripRow {
@@ -104,6 +104,18 @@ export async function updateTrip(trip: Trip): Promise<Trip> {
     .single();
   if (error) throw error;
   return rowToTrip(data as TripRow);
+}
+
+export async function updateTripLists(
+  id: string,
+  luggageList: LuggageCategory[],
+  shoppingList: ShoppingItem[],
+): Promise<void> {
+  const { error } = await supabase
+    .from('trips')
+    .update({ luggage_list: luggageList, shopping_list: shoppingList })
+    .eq('id', id);
+  if (error) throw error;
 }
 
 export async function deleteTrip(id: string): Promise<void> {

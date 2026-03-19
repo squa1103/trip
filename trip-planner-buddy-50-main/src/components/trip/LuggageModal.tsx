@@ -18,41 +18,47 @@ const LuggageModal = ({ open, onClose, luggageList, onUpdate }: Props) => {
     setCategories(luggageList);
   }, [luggageList]);
 
-  useEffect(() => {
-    if (onUpdate) onUpdate(categories);
-  }, [categories]);
-
   if (!open) return null;
 
   const addCategory = () => {
     if (!newCategory.trim()) return;
-    setCategories((prev) => [...prev, { id: Date.now().toString(), name: newCategory.trim(), items: [] }]);
+    const next = [...categories, { id: Date.now().toString(), name: newCategory.trim(), items: [] }];
+    setCategories(next);
+    onUpdate?.(next);
     setNewCategory('');
   };
 
   const deleteCategory = (catId: string) => {
-    setCategories((prev) => prev.filter((c) => c.id !== catId));
+    const next = categories.filter((c) => c.id !== catId);
+    setCategories(next);
+    onUpdate?.(next);
   };
 
   const addItem = (catId: string) => {
     const text = newItems[catId]?.trim();
     if (!text) return;
-    setCategories((prev) =>
-      prev.map((c) => c.id === catId ? { ...c, items: [...c.items, { id: Date.now().toString(), text, checked: false }] } : c)
+    const next = categories.map((c) =>
+      c.id === catId ? { ...c, items: [...c.items, { id: Date.now().toString(), text, checked: false }] } : c
     );
+    setCategories(next);
+    onUpdate?.(next);
     setNewItems((prev) => ({ ...prev, [catId]: '' }));
   };
 
   const toggleItem = (catId: string, itemId: string) => {
-    setCategories((prev) =>
-      prev.map((c) => c.id === catId ? { ...c, items: c.items.map((i) => i.id === itemId ? { ...i, checked: !i.checked } : i) } : c)
+    const next = categories.map((c) =>
+      c.id === catId ? { ...c, items: c.items.map((i) => i.id === itemId ? { ...i, checked: !i.checked } : i) } : c
     );
+    setCategories(next);
+    onUpdate?.(next);
   };
 
   const deleteItem = (catId: string, itemId: string) => {
-    setCategories((prev) =>
-      prev.map((c) => c.id === catId ? { ...c, items: c.items.filter((i) => i.id !== itemId) } : c)
+    const next = categories.map((c) =>
+      c.id === catId ? { ...c, items: c.items.filter((i) => i.id !== itemId) } : c
     );
+    setCategories(next);
+    onUpdate?.(next);
   };
 
   return (

@@ -1,4 +1,4 @@
-import { useState, useRef, DragEvent } from 'react';
+import { useState, useRef, useEffect, DragEvent } from 'react';
 import { ArrowLeft, Plus, Trash2, Upload, GripVertical } from 'lucide-react';
 import { Trip, DailyItinerary, ActivityCard, HotelInfo, LuggageCategory, ShoppingItem } from '@/types/trip';
 import LuggageModal from '@/components/trip/LuggageModal';
@@ -23,6 +23,10 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false }: Props
   const coverInputRef = useRef<HTMLInputElement>(null);
   const [luggageOpen, setLuggageOpen] = useState(false);
   const [shoppingOpen, setShoppingOpen] = useState(false);
+
+  useEffect(() => {
+    setTrip((prev) => ({ ...prev, luggageList: initial.luggageList, shoppingList: initial.shoppingList }));
+  }, [initial.luggageList, initial.shoppingList]);
   // Drag state for activities
   const dragActivity = useRef<{ dayIdx: number; actIdx: number } | null>(null);
   const dragOverActivity = useRef<{ dayIdx: number; actIdx: number } | null>(null);

@@ -1,13 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Plus, Plane, Hotel, Luggage, ShoppingCart, X, ExternalLink, Check } from 'lucide-react';
-import { ActivityCard as ActivityCardType, TodoItem, LuggageCategory, ShoppingItem } from '@/types/trip';
+import { Trip, ActivityCard as ActivityCardType, TodoItem, LuggageCategory, ShoppingItem } from '@/types/trip';
 import Header from '@/components/Header';
 import ActivityDetailModal from '@/components/trip/ActivityDetailModal';
 import LuggageModal from '@/components/trip/LuggageModal';
 import ShoppingModal from '@/components/trip/ShoppingModal';
-import { fetchTripById, updateTrip } from '@/lib/trips';
+import { fetchTripById, updateTrip, updateTripLists } from '@/lib/trips';
 
 const TripDetail = () => {
   const { id } = useParams();
@@ -22,8 +22,16 @@ const TripDetail = () => {
 
   const mutation = useMutation({
     mutationFn: updateTrip,
-    onSuccess: (updated) => {
-      queryClient.setQueryData(['trip', id], updated);
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['trips'] });
+    },
+  });
+
+  const listsMutation = useMutation({
+    mutationFn: ({ luggageList, shoppingList }: { luggageList: LuggageCategory[]; shoppingList: ShoppingItem[] }) =>
+      updateTripLists(id!, luggageList, shoppingList),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['trips'] });
     },
   });
 
@@ -33,16 +41,38 @@ const TripDetail = () => {
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [newTodo, setNewTodo] = useState('');
   const [showTodoInput, setShowTodoInput] = useState(false);
-  const [luggageList, setLuggageList] = useState<LuggageCategory[]>([]);
-  const [shoppingList, setShoppingList] = useState<ShoppingItem[]>([]);
+
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (trip) {
       setTodos(trip.todos);
-      setLuggageList(trip.luggageList);
-      setShoppingList(trip.shoppingList);
     }
   }, [trip]);
+
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, []);
+
+  const scheduleSave = useCallback(() => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      const latest = queryClient.getQueryData<Trip>(['trip', id]);
+      if (latest) listsMutation.mutate({ luggageList: latest.luggageList, shoppingList: latest.shoppingList });
+      saveTimerRef.current = null;
+    }, 600);
+  }, [queryClient, id, listsMutation]);
+
+  const flushSave = useCallback(() => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+      const latest = queryClient.getQueryData<Trip>(['trip', id]);
+      if (latest) listsMutation.mutate({ luggageList: latest.luggageList, shoppingList: latest.shoppingList });
+    }
+  }, [queryClient, id, listsMutation]);
 
   if (isLoading) {
     return (
@@ -76,13 +106,17 @@ const TripDetail = () => {
   };
 
   const handleLuggageUpdate = (next: LuggageCategory[]) => {
-    setLuggageList(next);
-    mutation.mutate({ ...trip, luggageList: next });
+    queryClient.setQueryData<Trip>(['trip', id], (old) =>
+      old ? { ...old, luggageList: next } : old
+    );
+    scheduleSave();
   };
 
   const handleShoppingUpdate = (next: ShoppingItem[]) => {
-    setShoppingList(next);
-    mutation.mutate({ ...trip, shoppingList: next });
+    queryClient.setQueryData<Trip>(['trip', id], (old) =>
+      old ? { ...old, shoppingList: next } : old
+    );
+    scheduleSave();
   };
 
   const renderAddress = (address: string) => {
@@ -290,14 +324,14 @@ const TripDetail = () => {
       )}
       <LuggageModal
         open={luggageOpen}
-        onClose={() => setLuggageOpen(false)}
-        luggageList={luggageList}
+        onClose={() => { flushSave(); setLuggageOpen(false); }}
+        luggageList={trip.luggageList}
         onUpdate={handleLuggageUpdate}
       />
       <ShoppingModal
         open={shoppingOpen}
-        onClose={() => setShoppingOpen(false)}
-        shoppingList={shoppingList}
+        onClose={() => { flushSave(); setShoppingOpen(false); }}
+        shoppingList={trip.shoppingList}
         onUpdate={handleShoppingUpdate}
       />
     </div>

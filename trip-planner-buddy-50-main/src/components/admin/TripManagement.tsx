@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Trip } from '@/types/trip';
@@ -35,6 +35,15 @@ const TripManagement = () => {
     queryFn: fetchTrips,
   });
 
+  useEffect(() => {
+    if (!editingTrip) return;
+    const latest = trips.find((t) => t.id === editingTrip.id);
+    if (!latest) return;
+    setEditingTrip((prev) =>
+      prev ? { ...prev, luggageList: latest.luggageList, shoppingList: latest.shoppingList } : null
+    );
+  }, [trips]);
+
   const createMutation = useMutation({
     mutationFn: createTrip,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['trips'] }),
@@ -42,7 +51,10 @@ const TripManagement = () => {
 
   const updateMutation = useMutation({
     mutationFn: updateTrip,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['trips'] }),
+    onSuccess: (updatedTrip) => {
+      queryClient.invalidateQueries({ queryKey: ['trips'] });
+      queryClient.invalidateQueries({ queryKey: ['trip', updatedTrip.id] });
+    },
   });
 
   const deleteMutation = useMutation({
