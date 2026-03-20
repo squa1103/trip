@@ -92,6 +92,7 @@ const TripManagement = () => {
         onSave={handleSave}
         onCancel={() => { setEditingTrip(null); setIsCreating(false); }}
         isSaving={isSaving}
+        isNewTrip={isCreating}
       />
     );
   }

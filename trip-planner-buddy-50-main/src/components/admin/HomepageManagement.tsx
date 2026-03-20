@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Upload, Trash2, Plus, Image, Video, Save, Check } from 'lucide-react';
 import { mockCarouselSlides, introVideoUrl } from '@/data/mockData';
 import { supabase } from '@/lib/supabase';
+import { SITE_NAME_STORAGE_KEY } from '@/hooks/useSiteDisplayTitle';
 
 type Slide = { id: string; imageUrl: string; title?: string };
 
@@ -13,6 +14,7 @@ const HomepageManagement = () => {
   const [videoUrl, setVideoUrl] = useState(introVideoUrl);
   const [pendingVideoFile, setPendingVideoFile] = useState<File | null>(null);
   const [slides, setSlides] = useState<Slide[]>(mockCarouselSlides);
+  const [siteName, setSiteName] = useState('');
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -30,7 +32,7 @@ const HomepageManagement = () => {
       const { data, error } = await supabase
         .from('homepage_settings')
         .select('key, value')
-        .in('key', ['carousel_slides', 'intro_video', 'site_logo']);
+        .in('key', ['carousel_slides', 'intro_video', 'site_logo', 'site_name']);
       if (error || hasUserInteractedRef.current) return;
       for (const row of data ?? []) {
         if (row.key === 'carousel_slides' && Array.isArray(row.value) && row.value.length > 0) {
@@ -41,6 +43,9 @@ const HomepageManagement = () => {
         }
         if (row.key === 'site_logo' && typeof row.value === 'string' && row.value) {
           setLogoPreview(row.value);
+        }
+        if (row.key === 'site_name' && typeof row.value === 'string' && row.value) {
+          setSiteName(row.value);
         }
       }
       // 若資料庫沒有 LOGO，沿用 localStorage（相容舊資料）
@@ -199,6 +204,15 @@ const HomepageManagement = () => {
       if (videoResult.error) throw new Error(`影片網址儲存失敗：${videoResult.error.message}`);
       if (slidesResult.error) throw new Error(`輪播圖儲存失敗：${slidesResult.error.message}`);
 
+      const nameTrimmed = siteName.trim();
+      const { error: siteNameError } = await supabase
+        .from('homepage_settings')
+        .upsert({ key: 'site_name', value: nameTrimmed || null }, { onConflict: 'key' });
+      if (siteNameError) throw new Error(`網站名稱儲存失敗：${siteNameError.message}`);
+      if (nameTrimmed) localStorage.setItem(SITE_NAME_STORAGE_KEY, nameTrimmed);
+      else localStorage.removeItem(SITE_NAME_STORAGE_KEY);
+      window.dispatchEvent(new CustomEvent('siteNameUpdated', { detail: { name: nameTrimmed } }));
+
       window.dispatchEvent(new Event('carouselUpdated'));
       setHasUnsavedChanges(false);
       setSaveSuccess(true);
@@ -233,6 +247,22 @@ const HomepageManagement = () => {
             <><Save className="h-4 w-4" /> 儲存</>
           )}
         </button>
+      </div>
+
+      {/* Site name */}
+      <div className="bg-card rounded-xl p-6 shadow-sm">
+        <h3 className="font-semibold text-foreground mb-4">網站名稱</h3>
+        <input
+          type="text"
+          value={siteName}
+          onChange={(e) => {
+            setSiteName(e.target.value);
+            markInteracted();
+          }}
+          aria-label="網站名稱"
+          className="w-full max-w-md px-4 py-2.5 rounded-lg border bg-background text-[#695D54] placeholder:text-[#695D54]/50 outline-none focus:ring-2 focus:ring-ring"
+          placeholder="後台登入與側欄標題（未填則顯示「後台管理」）"
+        />
       </div>
 
       {/* Logo */}

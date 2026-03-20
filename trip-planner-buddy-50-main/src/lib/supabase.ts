@@ -1,7 +1,31 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+function trimEnv(value: string | undefined): string {
+  return String(value ?? '')
+    .replace(/\r/g, '')
+    .trim();
+}
+
+const realSupabaseUrl = trimEnv(import.meta.env.VITE_SUPABASE_URL);
+const supabaseAnonKey = trimEnv(import.meta.env.VITE_SUPABASE_ANON_KEY);
+
+const devProxyOff =
+  import.meta.env.VITE_SUPABASE_DEV_PROXY === 'false' || import.meta.env.VITE_SUPABASE_DEV_PROXY === '0';
+
+/** 與 vite.config.ts 的 proxy 條件一致：僅 vite dev + 遠端 https 專案網址 */
+function useDevSupabaseProxy(): boolean {
+  return (
+    import.meta.env.MODE === 'development' &&
+    !devProxyOff &&
+    realSupabaseUrl.startsWith('https://') &&
+    !/localhost|127\.0\.0\.1/i.test(realSupabaseUrl)
+  );
+}
+
+const supabaseUrl =
+  typeof window !== 'undefined' && useDevSupabaseProxy()
+    ? `${window.location.origin}/__supabase`
+    : realSupabaseUrl || 'https://placeholder.supabase.co';
 
 // Use fallback placeholders so the app can still boot even if env vars are missing.
 // Actual data queries will fail gracefully; the UI will show loading/empty states.

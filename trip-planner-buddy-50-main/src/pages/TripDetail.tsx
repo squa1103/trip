@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Plus, Plane, Hotel, Luggage, ShoppingCart, X, ExternalLink, Check } from 'lucide-react';
+import { ArrowLeft, Plus, Plane, Hotel, Luggage, ShoppingCart, Users, Receipt, X, ExternalLink, Check } from 'lucide-react';
 import { Trip, ActivityCard as ActivityCardType, TodoItem, LuggageCategory, ShoppingItem } from '@/types/trip';
 import Header from '@/components/Header';
 import ActivityDetailModal from '@/components/trip/ActivityDetailModal';
 import LuggageModal from '@/components/trip/LuggageModal';
 import ShoppingModal from '@/components/trip/ShoppingModal';
+import ManageParticipants from '@/components/trip/ManageParticipants';
+import ExpenseLedgerModal from '@/components/trip/ExpenseLedgerModal';
 import { fetchTripById, updateTrip, updateTripLists } from '@/lib/trips';
 
 const TripDetail = () => {
@@ -38,6 +40,8 @@ const TripDetail = () => {
   const [selectedActivity, setSelectedActivity] = useState<ActivityCardType | null>(null);
   const [luggageOpen, setLuggageOpen] = useState(false);
   const [shoppingOpen, setShoppingOpen] = useState(false);
+  const [participantsOpen, setParticipantsOpen] = useState(false);
+  const [ledgerOpen, setLedgerOpen] = useState(false);
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [newTodo, setNewTodo] = useState('');
   const [showTodoInput, setShowTodoInput] = useState(false);
@@ -291,9 +295,10 @@ const TripDetail = () => {
           )}
         </div>
 
-        {/* Luggage & Shopping */}
-        <div className="grid grid-cols-2 gap-6">
+        {/* Luggage, shopping & trip participants (split / ledger) */}
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
           <button
+            type="button"
             onClick={() => setLuggageOpen(true)}
             className="bg-card rounded-xl p-8 shadow-sm hover:shadow-md transition-shadow flex flex-col items-center gap-3 group"
           >
@@ -301,11 +306,28 @@ const TripDetail = () => {
             <span className="font-medium text-foreground">行李清單</span>
           </button>
           <button
+            type="button"
             onClick={() => setShoppingOpen(true)}
             className="bg-card rounded-xl p-8 shadow-sm hover:shadow-md transition-shadow flex flex-col items-center gap-3 group"
           >
             <ShoppingCart className="h-10 w-10 text-secondary group-hover:scale-110 transition-transform" />
             <span className="font-medium text-foreground">採購清單</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setParticipantsOpen(true)}
+            className="bg-card rounded-xl p-8 shadow-sm hover:shadow-md transition-shadow flex flex-col items-center gap-3 group"
+          >
+            <Users className="h-10 w-10 text-secondary group-hover:scale-110 transition-transform" />
+            <span className="font-medium text-foreground">行程成員</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setLedgerOpen(true)}
+            className="bg-card rounded-xl p-8 shadow-sm hover:shadow-md transition-shadow flex flex-col items-center gap-3 group"
+          >
+            <Receipt className="h-10 w-10 text-secondary group-hover:scale-110 transition-transform" />
+            <span className="font-medium text-foreground">記帳器</span>
           </button>
         </div>
 
@@ -334,6 +356,8 @@ const TripDetail = () => {
         shoppingList={trip.shoppingList}
         onUpdate={handleShoppingUpdate}
       />
+      <ManageParticipants tripId={trip.id} open={participantsOpen} onOpenChange={setParticipantsOpen} />
+      <ExpenseLedgerModal tripId={trip.id} open={ledgerOpen} onOpenChange={setLedgerOpen} />
     </div>
   );
 };

@@ -3,12 +3,16 @@ import { ArrowLeft, Plus, Trash2, Upload, GripVertical } from 'lucide-react';
 import { Trip, DailyItinerary, ActivityCard, HotelInfo, LuggageCategory, ShoppingItem } from '@/types/trip';
 import LuggageModal from '@/components/trip/LuggageModal';
 import ShoppingModal from '@/components/trip/ShoppingModal';
+import TripExpensesPanel from '@/components/admin/TripExpensesPanel';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface Props {
   trip: Trip;
   onSave: (trip: Trip) => void;
   onCancel: () => void;
   isSaving?: boolean;
+  /** 後台「新增行程」尚未儲存前為 true，記帳管理將暫時停用 */
+  isNewTrip?: boolean;
 }
 
 const fileToDataUrl = (file: File): Promise<string> =>
@@ -18,7 +22,7 @@ const fileToDataUrl = (file: File): Promise<string> =>
     reader.readAsDataURL(file);
   });
 
-const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false }: Props) => {
+const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTrip = false }: Props) => {
   const [trip, setTrip] = useState<Trip>({ ...initial });
   const coverInputRef = useRef<HTMLInputElement>(null);
   const [luggageOpen, setLuggageOpen] = useState(false);
@@ -198,6 +202,13 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false }: Props
         </button>
       </div>
 
+      <Tabs defaultValue="itinerary" className="w-full">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="itinerary">行程內容</TabsTrigger>
+          <TabsTrigger value="expenses">記帳管理</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="itinerary" className="mt-6 space-y-8">
       {/* Section 1: Basic Info */}
       <div className="bg-card rounded-xl p-6 shadow-sm space-y-4">
         <h3 className="font-semibold text-foreground">基本資訊</h3>
@@ -439,6 +450,12 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false }: Props
           <p className="text-xs text-muted-foreground mt-1">點擊管理</p>
         </button>
       </div>
+        </TabsContent>
+
+        <TabsContent value="expenses" className="mt-6">
+          <TripExpensesPanel tripId={trip.id} disabled={isNewTrip} />
+        </TabsContent>
+      </Tabs>
 
       {/* Modals */}
       <LuggageModal

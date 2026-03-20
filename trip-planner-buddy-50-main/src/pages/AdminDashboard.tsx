@@ -5,12 +5,20 @@ import AccountManagement from '@/components/admin/AccountManagement';
 import HomepageManagement from '@/components/admin/HomepageManagement';
 import TripManagement from '@/components/admin/TripManagement';
 import { getSession, signOut } from '@/lib/auth';
+import { useSiteDisplayTitle } from '@/hooks/useSiteDisplayTitle';
+
+function publicHomeHashUrl(): string {
+  const base = import.meta.env.BASE_URL.endsWith('/')
+    ? import.meta.env.BASE_URL
+    : `${import.meta.env.BASE_URL}/`;
+  return `${new URL(base, window.location.origin).href}#/`;
+}
 
 type AdminPage = 'accounts' | 'homepage' | 'trips';
 
 const menuItems: { key: AdminPage; label: string; icon: React.ElementType }[] = [
   { key: 'accounts', label: '帳號管理', icon: Users },
-  { key: 'homepage', label: '首頁管理', icon: Home },
+  { key: 'homepage', label: '網站管理', icon: Home },
   { key: 'trips', label: '行程管理', icon: MapPinned },
 ];
 
@@ -19,6 +27,7 @@ const AdminDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [checking, setChecking] = useState(true);
   const navigate = useNavigate();
+  const siteDisplayTitle = useSiteDisplayTitle();
 
   useEffect(() => {
     getSession().then((session) => {
@@ -46,8 +55,8 @@ const AdminDashboard = () => {
     <div className="min-h-screen bg-background flex">
       {/* Sidebar */}
       <aside className={`${sidebarOpen ? 'w-56' : 'w-16'} bg-primary text-primary-foreground transition-all duration-300 flex flex-col shrink-0`}>
-        <div className="h-16 flex items-center justify-center border-b border-sidebar-border">
-          {sidebarOpen && <span className="text-lg font-bold text-gold-gradient">後台管理</span>}
+        <div className="h-16 flex items-center justify-start border-b border-sidebar-border pl-5 pr-2">
+          {sidebarOpen && <span className="text-lg font-bold text-[#695D54]">{siteDisplayTitle}</span>}
         </div>
         <nav className="flex-1 py-4 space-y-1 px-2">
           {menuItems.map((item) => (
@@ -67,7 +76,8 @@ const AdminDashboard = () => {
         </nav>
         <div className="px-2 pb-4 space-y-1">
           <button
-            onClick={() => navigate('/')}
+            type="button"
+            onClick={() => window.open(publicHomeHashUrl(), '_blank', 'noopener,noreferrer')}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
           >
             <ExternalLink className="h-5 w-5 shrink-0" />

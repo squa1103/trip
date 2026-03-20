@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { signIn } from '@/lib/auth';
+import { describeSignInError, isSupabaseConfigured, signIn } from '@/lib/auth';
+import { useSiteDisplayTitle } from '@/hooks/useSiteDisplayTitle';
 
 const AdminLogin = () => {
   const [email, setEmail] = useState('');
@@ -8,16 +9,21 @@ const AdminLogin = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const siteDisplayTitle = useSiteDisplayTitle();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
+      if (!isSupabaseConfigured()) {
+        setError(describeSignInError(null));
+        return;
+      }
       await signIn(email, password);
       navigate('/admin');
-    } catch {
-      setError('帳號或密碼錯誤');
+    } catch (err) {
+      setError(describeSignInError(err));
     } finally {
       setLoading(false);
     }
@@ -26,7 +32,7 @@ const AdminLogin = () => {
   return (
     <div className="min-h-screen bg-primary flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        <h1 className="text-3xl font-bold text-center text-gold-gradient mb-8">後台管理</h1>
+        <h1 className="text-3xl font-bold text-center text-[#695D54] mb-8">{siteDisplayTitle}</h1>
         <form onSubmit={handleLogin} className="bg-card rounded-xl p-8 shadow-2xl space-y-5">
           <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Email</label>
