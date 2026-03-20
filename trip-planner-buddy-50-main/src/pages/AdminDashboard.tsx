@@ -7,13 +7,6 @@ import TripManagement from '@/components/admin/TripManagement';
 import { getSession, signOut } from '@/lib/auth';
 import { useSiteDisplayTitle } from '@/hooks/useSiteDisplayTitle';
 
-/** 前台首頁：沿用目前網址的路徑（含 GitHub Pages 子目錄），只改 hash，避免 production base `./` 時誤開到 origin 根目錄 */
-function publicHomeHashUrl(): string {
-  const url = new URL(window.location.href);
-  url.hash = '#/';
-  return url.href;
-}
-
 type AdminPage = 'accounts' | 'homepage' | 'trips';
 
 const menuItems: { key: AdminPage; label: string; icon: React.ElementType }[] = [
@@ -75,14 +68,15 @@ const AdminDashboard = () => {
           ))}
         </nav>
         <div className="px-2 pb-4 space-y-1">
-          <button
-            type="button"
-            onClick={() => window.open(publicHomeHashUrl(), '_blank', 'noopener,noreferrer')}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
+          <a
+            href="#/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors no-underline"
           >
             <ExternalLink className="h-5 w-5 shrink-0" />
             {sidebarOpen && <span>前往前台</span>}
-          </button>
+          </a>
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
