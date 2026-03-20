@@ -7,11 +7,11 @@ import TripManagement from '@/components/admin/TripManagement';
 import { getSession, signOut } from '@/lib/auth';
 import { useSiteDisplayTitle } from '@/hooks/useSiteDisplayTitle';
 
+/** 前台首頁：沿用目前網址的路徑（含 GitHub Pages 子目錄），只改 hash，避免 production base `./` 時誤開到 origin 根目錄 */
 function publicHomeHashUrl(): string {
-  const base = import.meta.env.BASE_URL.endsWith('/')
-    ? import.meta.env.BASE_URL
-    : `${import.meta.env.BASE_URL}/`;
-  return `${new URL(base, window.location.origin).href}#/`;
+  const url = new URL(window.location.href);
+  url.hash = '#/';
+  return url.href;
 }
 
 type AdminPage = 'accounts' | 'homepage' | 'trips';
