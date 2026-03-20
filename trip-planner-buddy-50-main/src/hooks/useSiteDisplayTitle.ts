@@ -1,30 +1,27 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import {
+  SITE_NAME_STORAGE_KEY,
+  DEFAULT_ADMIN_DISPLAY,
+  fetchSiteNameFromSupabase,
+} from '@/lib/siteName';
 
-const DEFAULT_TITLE = '後台管理';
-export const SITE_NAME_STORAGE_KEY = 'siteName';
+export { SITE_NAME_STORAGE_KEY } from '@/lib/siteName';
 
 export function useSiteDisplayTitle(): string {
   const [title, setTitle] = useState(() => {
     const local = localStorage.getItem(SITE_NAME_STORAGE_KEY);
     if (local?.trim()) return local.trim();
-    return DEFAULT_TITLE;
+    return DEFAULT_ADMIN_DISPLAY;
   });
 
   useEffect(() => {
     const fetchName = async () => {
-      const { data } = await supabase
-        .from('homepage_settings')
-        .select('value')
-        .eq('key', 'site_name')
-        .maybeSingle();
-      const v = data?.value;
-      if (typeof v === 'string' && v.trim()) {
-        const t = v.trim();
-        setTitle(t);
-        localStorage.setItem(SITE_NAME_STORAGE_KEY, t);
+      const remote = await fetchSiteNameFromSupabase();
+      if (remote) {
+        setTitle(remote);
+        localStorage.setItem(SITE_NAME_STORAGE_KEY, remote);
       } else {
-        setTitle(DEFAULT_TITLE);
+        setTitle(DEFAULT_ADMIN_DISPLAY);
         localStorage.removeItem(SITE_NAME_STORAGE_KEY);
       }
     };
@@ -38,7 +35,7 @@ export function useSiteDisplayTitle(): string {
         setTitle(trimmed);
       } else {
         localStorage.removeItem(SITE_NAME_STORAGE_KEY);
-        setTitle(DEFAULT_TITLE);
+        setTitle(DEFAULT_ADMIN_DISPLAY);
       }
     };
 

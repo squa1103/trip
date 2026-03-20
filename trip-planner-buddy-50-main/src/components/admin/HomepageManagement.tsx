@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Upload, Trash2, Plus, Image, Video, Save, Check } from 'lucide-react';
 import { mockCarouselSlides, introVideoUrl } from '@/data/mockData';
 import { supabase } from '@/lib/supabase';
-import { SITE_NAME_STORAGE_KEY } from '@/hooks/useSiteDisplayTitle';
+import { SITE_NAME_STORAGE_KEY } from '@/lib/siteName';
 
 type Slide = { id: string; imageUrl: string; title?: string };
 
