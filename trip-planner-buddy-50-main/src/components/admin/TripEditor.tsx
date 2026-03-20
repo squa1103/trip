@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, DragEvent } from 'react';
-import { ArrowLeft, Plus, Trash2, Upload, GripVertical } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Upload, GripVertical, Users, Luggage, ShoppingCart } from 'lucide-react';
 import { Trip, DailyItinerary, ActivityCard, HotelInfo, LuggageCategory, ShoppingItem } from '@/types/trip';
 import LuggageModal from '@/components/trip/LuggageModal';
 import ShoppingModal from '@/components/trip/ShoppingModal';
 import TripExpensesPanel from '@/components/admin/TripExpensesPanel';
+import ManageParticipants from '@/components/trip/ManageParticipants';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface Props {
@@ -27,6 +28,7 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
   const coverInputRef = useRef<HTMLInputElement>(null);
   const [luggageOpen, setLuggageOpen] = useState(false);
   const [shoppingOpen, setShoppingOpen] = useState(false);
+  const [participantsOpen, setParticipantsOpen] = useState(false);
 
   useEffect(() => {
     setTrip((prev) => ({ ...prev, luggageList: initial.luggageList, shoppingList: initial.shoppingList }));
@@ -144,20 +146,13 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
     update('dailyItineraries', updated);
   };
 
-  const updateActivity = (dayIndex: number, actId: string, field: string, value: any) => {
+  const updateActivity = (dayIndex: number, actId: string, field: string, value: unknown) => {
     const updated = [...trip.dailyItineraries];
     updated[dayIndex] = {
       ...updated[dayIndex],
       activities: updated[dayIndex].activities.map((a) => {
         if (a.id !== actId) return a;
-        const newAct = { ...a, [field]: value };
-        // Auto-calculate amountPerPerson when price or memberCount changes
-        if (field === 'price' || field === 'memberCount') {
-          const price = field === 'price' ? Number(value) : a.price;
-          const count = field === 'memberCount' ? Number(value) : a.memberCount;
-          newAct.amountPerPerson = count > 0 ? Math.round(price / count) : 0;
-        }
-        return newAct;
+        return { ...a, [field]: value };
       }),
     };
     update('dailyItineraries', updated);
@@ -398,30 +393,6 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
                       <option>景點</option><option>美食</option><option>購物</option><option>交通</option><option>其他</option>
                     </select>
                     <textarea value={act.notes} onChange={(e) => updateActivity(dayIdx, act.id, 'notes', e.target.value)} placeholder="備註 (支援HTML)" rows={2} className="w-full px-2 py-1 rounded border bg-background text-foreground outline-none text-sm" />
-                    <div className="grid grid-cols-2 gap-2">
-                      <input type="number" value={act.price || ''} onChange={(e) => updateActivity(dayIdx, act.id, 'price', Number(e.target.value))} placeholder="價格" className="px-2 py-1 rounded border bg-background text-foreground outline-none text-sm" />
-                      <select value={act.settlementStatus} onChange={(e) => updateActivity(dayIdx, act.id, 'settlementStatus', e.target.value)} className="px-2 py-1 rounded border bg-background text-foreground text-sm">
-                        <option value="unsettled">未結清</option><option value="settled">已結清</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs text-muted-foreground mb-1">付款人</label>
-                      <input value={act.payers} onChange={(e) => updateActivity(dayIdx, act.id, 'payers', e.target.value)} placeholder="付款人姓名" className="w-full px-2 py-1 rounded border bg-background text-foreground outline-none text-sm" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-xs text-muted-foreground mb-1">應付人數</label>
-                        <input type="number" value={act.memberCount || ''} onChange={(e) => updateActivity(dayIdx, act.id, 'memberCount', Number(e.target.value))} placeholder="人數" className="w-full px-2 py-1 rounded border bg-background text-foreground outline-none text-sm" />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-muted-foreground mb-1">每人應付</label>
-                        <input type="number" value={act.amountPerPerson || ''} readOnly className="w-full px-2 py-1 rounded border bg-muted text-foreground outline-none text-sm cursor-not-allowed" />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs text-muted-foreground mb-1">應付人員名稱</label>
-                      <input value={act.members} onChange={(e) => updateActivity(dayIdx, act.id, 'members', e.target.value)} placeholder="人員名稱 (以逗號分隔)" className="w-full px-2 py-1 rounded border bg-background text-foreground outline-none text-sm" />
-                    </div>
                   </div>
                 ))}
                 <button onClick={() => addActivity(dayIdx)} className="w-full py-2 rounded-lg border-2 border-dashed border-border text-muted-foreground text-sm hover:border-secondary hover:text-secondary transition-colors flex items-center justify-center gap-1">
@@ -433,21 +404,35 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
         </div>
       </div>
 
-      {/* Section 4: Luggage & Shopping */}
-      <div className="grid grid-cols-2 gap-6">
+      {/* Section 4: Luggage, Shopping & Participants（按鈕樣式與前台 TripDetail 一致） */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
         <button
+          type="button"
           onClick={() => setLuggageOpen(true)}
-          className="bg-card rounded-xl p-6 shadow-sm text-center hover:shadow-md transition-shadow"
+          className="bg-card rounded-xl p-8 shadow-sm hover:shadow-md transition-shadow flex flex-col items-center gap-3 group"
         >
-          <p className="font-medium text-foreground">行李清單</p>
-          <p className="text-xs text-muted-foreground mt-1">點擊管理</p>
+          <Luggage className="h-10 w-10 text-secondary group-hover:scale-110 transition-transform" />
+          <span className="font-medium text-foreground">行李清單</span>
         </button>
         <button
+          type="button"
           onClick={() => setShoppingOpen(true)}
-          className="bg-card rounded-xl p-6 shadow-sm text-center hover:shadow-md transition-shadow"
+          className="bg-card rounded-xl p-8 shadow-sm hover:shadow-md transition-shadow flex flex-col items-center gap-3 group"
         >
-          <p className="font-medium text-foreground">採購清單</p>
-          <p className="text-xs text-muted-foreground mt-1">點擊管理</p>
+          <ShoppingCart className="h-10 w-10 text-secondary group-hover:scale-110 transition-transform" />
+          <span className="font-medium text-foreground">採購清單</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => !isNewTrip && setParticipantsOpen(true)}
+          disabled={isNewTrip}
+          className="bg-card rounded-xl p-8 shadow-sm hover:shadow-md transition-shadow flex flex-col items-center gap-3 group disabled:pointer-events-none disabled:opacity-50 disabled:hover:shadow-sm"
+        >
+          <Users className="h-10 w-10 text-secondary group-hover:scale-110 transition-transform" />
+          <span className="font-medium text-foreground">行程成員</span>
+          {isNewTrip && (
+            <span className="text-xs text-muted-foreground text-center -mt-1">請先儲存行程後再管理</span>
+          )}
         </button>
       </div>
         </TabsContent>
@@ -461,15 +446,18 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
       <LuggageModal
         open={luggageOpen}
         onClose={() => setLuggageOpen(false)}
+        tripId={trip.id}
         luggageList={trip.luggageList}
         onUpdate={(list) => update('luggageList', list)}
       />
       <ShoppingModal
         open={shoppingOpen}
         onClose={() => setShoppingOpen(false)}
+        tripId={trip.id}
         shoppingList={trip.shoppingList}
         onUpdate={(list) => update('shoppingList', list)}
       />
+      <ManageParticipants tripId={trip.id} open={participantsOpen} onOpenChange={setParticipantsOpen} />
     </div>
   );
 };

@@ -159,23 +159,6 @@ const AddExpenseModal = ({ tripId, open, onOpenChange }: Props) => {
     setOwedStrByParticipant(next);
   }, [baseAmount, includedParticipantIds.join(',')]);
 
-  const applyEqualSplit = () => {
-    if (baseAmount == null) {
-      toast.error('請先輸入有效的總金額與匯率');
-      return;
-    }
-    if (includedParticipantIds.length === 0) {
-      toast.error('請至少勾選一位參與分攤的成員');
-      return;
-    }
-    const splits = equalSplitCents(baseAmount, includedParticipantIds);
-    const next: Record<string, string> = {};
-    splits.forEach((s) => {
-      next[s.participantId] = String(s.owedAmount);
-    });
-    setOwedStrByParticipant(next);
-  };
-
   const toggleIncluded = (id: string, checked: boolean) => {
     setIncludedIds((prev) => {
       const next = new Set(prev);
@@ -366,14 +349,9 @@ const AddExpenseModal = ({ tripId, open, onOpenChange }: Props) => {
             </div>
 
             <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-3">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div>
-                  <Label className="text-foreground">分攤成員與金額</Label>
-                  <p className="text-xs text-muted-foreground mt-0.5">單位：TWD（新台幣）</p>
-                </div>
-                <Button type="button" variant="secondary" size="sm" onClick={applyEqualSplit}>
-                  依勾選均分（TWD）
-                </Button>
+              <div>
+                <Label className="text-foreground">分攤成員與金額</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">單位：TWD（新台幣）</p>
               </div>
               <ul className="space-y-2">
                 {participants.map((p) => (

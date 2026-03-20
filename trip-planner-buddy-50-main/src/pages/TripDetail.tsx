@@ -157,6 +157,26 @@ const TripDetail = () => {
       </div>
 
       <div className="container mx-auto px-4 py-8 space-y-10">
+        {/* 採購清單、記帳器置頂，方便進入頁面即可使用 */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <button
+            type="button"
+            onClick={() => setShoppingOpen(true)}
+            className="bg-card rounded-xl p-8 shadow-sm hover:shadow-md transition-shadow flex flex-col items-center gap-3 group"
+          >
+            <ShoppingCart className="h-10 w-10 text-secondary group-hover:scale-110 transition-transform" />
+            <span className="font-medium text-foreground">採購清單</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setLedgerOpen(true)}
+            className="bg-card rounded-xl p-8 shadow-sm hover:shadow-md transition-shadow flex flex-col items-center gap-3 group"
+          >
+            <Receipt className="h-10 w-10 text-secondary group-hover:scale-110 transition-transform" />
+            <span className="font-medium text-foreground">記帳器</span>
+          </button>
+        </div>
+
         {/* Todos */}
         <div className="bg-card rounded-xl p-6 shadow-sm">
           <h3 className="font-semibold text-foreground mb-4">待辦事項</h3>
@@ -295,8 +315,8 @@ const TripDetail = () => {
           )}
         </div>
 
-        {/* Luggage, shopping & trip participants (split / ledger) */}
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
+        {/* 行李清單、行程成員（採購與記帳器已置頂） */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           <button
             type="button"
             onClick={() => setLuggageOpen(true)}
@@ -307,27 +327,11 @@ const TripDetail = () => {
           </button>
           <button
             type="button"
-            onClick={() => setShoppingOpen(true)}
-            className="bg-card rounded-xl p-8 shadow-sm hover:shadow-md transition-shadow flex flex-col items-center gap-3 group"
-          >
-            <ShoppingCart className="h-10 w-10 text-secondary group-hover:scale-110 transition-transform" />
-            <span className="font-medium text-foreground">採購清單</span>
-          </button>
-          <button
-            type="button"
             onClick={() => setParticipantsOpen(true)}
             className="bg-card rounded-xl p-8 shadow-sm hover:shadow-md transition-shadow flex flex-col items-center gap-3 group"
           >
             <Users className="h-10 w-10 text-secondary group-hover:scale-110 transition-transform" />
             <span className="font-medium text-foreground">行程成員</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setLedgerOpen(true)}
-            className="bg-card rounded-xl p-8 shadow-sm hover:shadow-md transition-shadow flex flex-col items-center gap-3 group"
-          >
-            <Receipt className="h-10 w-10 text-secondary group-hover:scale-110 transition-transform" />
-            <span className="font-medium text-foreground">記帳器</span>
           </button>
         </div>
 
@@ -347,12 +351,14 @@ const TripDetail = () => {
       <LuggageModal
         open={luggageOpen}
         onClose={() => { flushSave(); setLuggageOpen(false); }}
+        tripId={trip.id}
         luggageList={trip.luggageList}
         onUpdate={handleLuggageUpdate}
       />
       <ShoppingModal
         open={shoppingOpen}
         onClose={() => { flushSave(); setShoppingOpen(false); }}
+        tripId={trip.id}
         shoppingList={trip.shoppingList}
         onUpdate={handleShoppingUpdate}
       />

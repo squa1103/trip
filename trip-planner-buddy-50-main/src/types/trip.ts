@@ -71,6 +71,8 @@ export interface LuggageCategory {
   id: string;
   name: string;
   items: LuggageItem[];
+  /** 專屬成員；舊資料未填時前端視為第一位成員 */
+  participantId?: string;
 }
 
 export interface LuggageItem {
@@ -85,6 +87,8 @@ export interface ShoppingItem {
   name: string;
   location: string;
   price: number;
+  /** 專屬成員；舊資料未填時前端視為第一位成員 */
+  participantId?: string;
 }
 
 export interface CarouselSlide {
