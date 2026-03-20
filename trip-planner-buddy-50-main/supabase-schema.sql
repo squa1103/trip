@@ -40,3 +40,6 @@ create policy "Auth users can update trips"
 create policy "Auth users can delete trips"
   on trips for delete
   using (auth.role() = 'authenticated');
+
+-- 分帳（trip_participants / expenses / expense_splits）：請另執行專案根目錄
+-- supabase-expenses-split-tables.sql（需在本檔 trips 表已建立後執行）。
