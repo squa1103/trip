@@ -156,7 +156,7 @@ const TripDetail = () => {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-8 space-y-10">
+      <div className="container mx-auto min-w-0 max-w-full px-4 py-8 space-y-10">
         {/* 採購清單、記帳器置頂，方便進入頁面即可使用 */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           <button
@@ -279,38 +279,44 @@ const TripDetail = () => {
           </div>
         </div>
 
-        {/* Daily Itineraries */}
-        <div className="bg-card rounded-xl p-6 shadow-sm">
-          <h3 className="font-semibold text-foreground mb-4">每日行程</h3>
+        {/* Daily Itineraries：橫向捲動區與標題分開 padding，避免內層 w-max 撐破外層寬度；勿用 touch-pan-x（會干擾頁面垂直捲動） */}
+        <div className="bg-card rounded-xl py-6 shadow-sm min-w-0 max-w-full overflow-x-hidden">
+          <h3 className="font-semibold text-foreground mb-4 px-6">每日行程</h3>
           {trip.dailyItineraries.length === 0 ? (
-            <p className="text-sm text-muted-foreground">尚未設定行程</p>
+            <p className="text-sm text-muted-foreground px-6">尚未設定行程</p>
           ) : (
-            <div className="flex gap-6 overflow-x-auto scrollbar-hide pb-4">
-              {trip.dailyItineraries.map((day) => (
-                <div key={day.date} className="flex-shrink-0 w-64">
-                  <div className="sticky top-0 bg-secondary text-secondary-foreground rounded-t-lg px-4 py-2 text-sm font-medium text-center">
-                    {new Date(day.date).toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit', weekday: 'short' })}
+            <div
+              className="itinerary-x-scroll w-full min-w-0 max-w-full overflow-x-auto overflow-y-hidden overscroll-x-contain pb-2 pl-6 pr-6 [contain:inline-size]"
+              tabIndex={0}
+              aria-label="每日行程橫向捲動"
+            >
+              <div className="flex w-max flex-nowrap gap-6 pb-2">
+                {trip.dailyItineraries.map((day) => (
+                  <div key={day.date} className="w-64 shrink-0 min-w-0 max-w-64">
+                    <div className="sticky top-0 bg-secondary text-secondary-foreground rounded-t-lg px-4 py-2 text-sm font-medium text-center">
+                      {new Date(day.date).toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit', weekday: 'short' })}
+                    </div>
+                    <div className="space-y-3 mt-3">
+                      {day.activities.map((activity) => (
+                        <button
+                          key={activity.id}
+                          onClick={() => setSelectedActivity(activity)}
+                          className="w-full min-w-0 text-left bg-muted/50 rounded-lg overflow-hidden hover:shadow-md transition-shadow group"
+                        >
+                          {activity.coverImage && (
+                            <img src={activity.coverImage} alt={activity.title} className="w-full max-w-full h-32 object-cover group-hover:scale-105 transition-transform duration-300" />
+                          )}
+                          <div className="p-3 min-w-0">
+                            <p className="font-medium text-foreground text-sm truncate">{activity.title}</p>
+                            <span className="inline-block max-w-full truncate mt-1 px-2 py-0.5 bg-secondary/20 text-secondary text-xs rounded-full">{activity.type}</span>
+                            <div className="mt-1 min-w-0">{renderAddress(activity.address)}</div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div className="space-y-3 mt-3">
-                    {day.activities.map((activity) => (
-                      <button
-                        key={activity.id}
-                        onClick={() => setSelectedActivity(activity)}
-                        className="w-full text-left bg-muted/50 rounded-lg overflow-hidden hover:shadow-md transition-shadow group"
-                      >
-                        {activity.coverImage && (
-                          <img src={activity.coverImage} alt={activity.title} className="w-full h-32 object-cover group-hover:scale-105 transition-transform duration-300" />
-                        )}
-                        <div className="p-3">
-                          <p className="font-medium text-foreground text-sm truncate">{activity.title}</p>
-                          <span className="inline-block mt-1 px-2 py-0.5 bg-secondary/20 text-secondary text-xs rounded-full">{activity.type}</span>
-                          <div className="mt-1">{renderAddress(activity.address)}</div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
         </div>

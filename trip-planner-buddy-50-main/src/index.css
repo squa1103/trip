@@ -111,4 +111,21 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
+  /** 行程詳情「每日行程」橫向捲動：保留可見捲軸，桌面較易拖曳／辨識可橫滑 */
+  .itinerary-x-scroll {
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.4) transparent;
+  }
+  .itinerary-x-scroll::-webkit-scrollbar {
+    height: 10px;
+  }
+  .itinerary-x-scroll::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted-foreground) / 0.35);
+    border-radius: 9999px;
+  }
+  .itinerary-x-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
 }
