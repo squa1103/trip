@@ -77,20 +77,20 @@ const ShoppingModal = ({ open, onClose, tripId, shoppingList, onUpdate }: Props)
   };
 
   const renderTable = (visible: ShoppingItem[]) => (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+    <div className="overflow-x-auto rounded-md border border-border bg-table">
+      <table className="w-full text-sm text-table-foreground">
         <thead>
-          <tr className="border-b border-border text-left">
-            <th className="pb-2 text-muted-foreground font-medium w-28">狀態</th>
-            <th className="pb-2 text-muted-foreground font-medium">名稱</th>
-            <th className="pb-2 text-muted-foreground font-medium">購買地點</th>
-            <th className="pb-2 text-muted-foreground font-medium w-24">定價</th>
-            <th className="pb-2 text-muted-foreground font-medium w-12"></th>
+          <tr className="border-b border-border bg-table-header text-left">
+            <th className="py-2 px-2 text-table-header-foreground font-medium w-28">狀態</th>
+            <th className="py-2 px-2 text-table-header-foreground font-medium">名稱</th>
+            <th className="py-2 px-2 text-table-header-foreground font-medium">購買地點</th>
+            <th className="py-2 px-2 text-table-header-foreground font-medium w-24">定價</th>
+            <th className="py-2 px-2 text-table-header-foreground font-medium w-12"></th>
           </tr>
         </thead>
         <tbody>
           {visible.map((item) => (
-            <tr key={item.id} className="border-b border-border/50">
+            <tr key={item.id} className="border-b border-border/60 hover:bg-muted/50">
               <td className="py-2">
                 <select
                   value={item.status}
@@ -143,7 +143,7 @@ const ShoppingModal = ({ open, onClose, tripId, shoppingList, onUpdate }: Props)
       type="button"
       onClick={addItem}
       disabled={participants.length === 0 || !resolvedTab}
-      className="mt-4 flex items-center gap-1 text-sm text-secondary hover:text-secondary/80 transition-colors disabled:pointer-events-none disabled:opacity-40"
+      className="mt-4 flex items-center gap-1 text-sm px-3 py-1.5 rounded-md bg-action text-action-foreground hover:bg-action/90 transition-colors disabled:pointer-events-none disabled:opacity-40"
     >
       <Plus className="h-4 w-4" /> 新增項目
     </button>

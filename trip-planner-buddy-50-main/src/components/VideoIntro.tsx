@@ -51,7 +51,7 @@ const VideoIntro = () => {
       </video>
       <button
         onClick={handleEnd}
-        className="absolute bottom-8 right-8 px-4 py-2 rounded-lg bg-secondary text-secondary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
+        className="absolute bottom-8 right-8 px-4 py-2 rounded-lg bg-action text-action-foreground text-sm font-medium hover:bg-action/90 transition-opacity"
       >
         略過
       </button>

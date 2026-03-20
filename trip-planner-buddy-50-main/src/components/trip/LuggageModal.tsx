@@ -150,7 +150,7 @@ const LuggageModal = ({ open, onClose, tripId, luggageList, onUpdate }: Props) =
           type="button"
           onClick={addCategory}
           disabled={participants.length === 0 || !resolvedTab || !newCategory.trim()}
-          className="px-3 py-1.5 rounded-md bg-secondary text-secondary-foreground text-sm disabled:opacity-40"
+          className="px-3 py-1.5 rounded-md bg-action text-action-foreground text-sm hover:bg-action/90 disabled:opacity-40"
         >
           <Plus className="h-4 w-4" />
         </button>

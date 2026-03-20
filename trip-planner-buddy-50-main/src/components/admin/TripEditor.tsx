@@ -191,7 +191,7 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
         <button
           onClick={() => onSave(trip)}
           disabled={isSaving}
-          className="px-6 py-2 rounded-lg bg-secondary text-secondary-foreground font-medium hover:opacity-90 disabled:opacity-60"
+          className="px-6 py-2 rounded-lg bg-action text-action-foreground font-medium hover:bg-action/90 disabled:opacity-60"
         >
           {isSaving ? '儲存中...' : '儲存'}
         </button>
@@ -299,7 +299,7 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
       <div className="bg-card rounded-xl p-6 shadow-sm space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-foreground">住宿資訊</h3>
-          <button onClick={addHotel} className="flex items-center gap-1 text-sm text-secondary hover:text-secondary/80">
+          <button onClick={addHotel} className="flex items-center gap-1 text-sm text-action hover:text-action/80">
             <Plus className="h-4 w-4" /> 新增
           </button>
         </div>
@@ -322,7 +322,7 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
       <div className="bg-card rounded-xl p-6 shadow-sm space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-foreground">每日行程</h3>
-          <button onClick={addDay} className="flex items-center gap-1 text-sm text-secondary hover:text-secondary/80">
+          <button onClick={addDay} className="flex items-center gap-1 text-sm text-action hover:text-action/80">
             <Plus className="h-4 w-4" /> 新增日期
           </button>
         </div>
@@ -336,17 +336,17 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
               onDragOver={(e) => handleDayDragOver(e, dayIdx)}
               onDrop={handleDayDrop}
             >
-              <div className="bg-secondary text-secondary-foreground rounded-t-lg px-4 py-2 text-sm font-medium text-center flex items-center gap-2 cursor-grab active:cursor-grabbing">
+              <div className="bg-table-header text-table-header-foreground rounded-t-lg px-4 py-2 text-sm font-medium text-center flex items-center gap-2 cursor-grab active:cursor-grabbing">
                 <GripVertical className="h-4 w-4 shrink-0 opacity-60" />
                 <input
                   type="date"
                   value={day.date}
                   onChange={(e) => updateDayDate(dayIdx, e.target.value)}
-                  className="bg-transparent text-secondary-foreground text-sm font-medium text-center outline-none border-none flex-1 cursor-pointer"
+                  className="bg-transparent text-table-header-foreground text-sm font-medium text-center outline-none border-none flex-1 cursor-pointer"
                 />
                 <button
                   onClick={() => update('dailyItineraries', trip.dailyItineraries.filter((_, i) => i !== dayIdx))}
-                  className="w-5 h-5 rounded-full border border-secondary-foreground/50 text-secondary-foreground/70 hover:bg-destructive hover:border-destructive hover:text-destructive-foreground flex items-center justify-center transition-colors shrink-0"
+                  className="w-5 h-5 rounded-full border border-table-header-foreground/50 text-table-header-foreground/80 hover:bg-destructive hover:border-destructive hover:text-destructive-foreground flex items-center justify-center transition-colors shrink-0"
                   title="刪除此日期"
                 >
                   <span className="text-sm font-bold leading-none">−</span>
@@ -395,7 +395,7 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
                     <textarea value={act.notes} onChange={(e) => updateActivity(dayIdx, act.id, 'notes', e.target.value)} placeholder="備註 (支援HTML)" rows={2} className="w-full px-2 py-1 rounded border bg-background text-foreground outline-none text-sm" />
                   </div>
                 ))}
-                <button onClick={() => addActivity(dayIdx)} className="w-full py-2 rounded-lg border-2 border-dashed border-border text-muted-foreground text-sm hover:border-secondary hover:text-secondary transition-colors flex items-center justify-center gap-1">
+                <button onClick={() => addActivity(dayIdx)} className="w-full py-2 rounded-lg border-2 border-dashed border-border text-muted-foreground text-sm hover:border-action hover:text-action transition-colors flex items-center justify-center gap-1">
                   <Plus className="h-4 w-4" /> 新增卡片
                 </button>
               </div>

@@ -146,13 +146,13 @@ const TripDetail = () => {
         <div className="absolute inset-0 bg-hero-overlay" />
         <button
           onClick={() => navigate(-1)}
-          className="absolute top-4 left-4 w-10 h-10 rounded-full bg-primary/50 text-primary-foreground flex items-center justify-center hover:bg-primary/70 transition-colors"
+          className="absolute top-4 left-4 w-10 h-10 rounded-full bg-primary/50 text-white flex items-center justify-center hover:bg-primary/70 transition-colors"
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
         <div className="absolute bottom-6 left-6 md:left-12">
-          <h1 className="text-2xl md:text-4xl font-bold text-primary-foreground drop-shadow-lg">{trip.title}</h1>
-          <p className="text-primary-foreground/80 mt-1">{trip.startDate} ~ {trip.endDate}</p>
+          <h1 className="text-2xl md:text-4xl font-bold text-white drop-shadow-lg">{trip.title}</h1>
+          <p className="text-white/85 mt-1">{trip.startDate} ~ {trip.endDate}</p>
         </div>
       </div>
 
@@ -206,7 +206,7 @@ const TripDetail = () => {
                   placeholder="輸入待辦事項..."
                   className="flex-1 text-sm px-3 py-1.5 rounded-md border bg-background text-foreground outline-none focus:ring-1 focus:ring-ring"
                 />
-                <button onClick={addTodo} className="px-3 py-1.5 text-sm rounded-md bg-secondary text-secondary-foreground">新增</button>
+                <button onClick={addTodo} className="px-3 py-1.5 text-sm rounded-md bg-action text-action-foreground hover:bg-action/90">新增</button>
                 <button onClick={() => setShowTodoInput(false)} className="text-muted-foreground"><X className="h-4 w-4" /></button>
               </div>
             ) : (
@@ -293,7 +293,7 @@ const TripDetail = () => {
               <div className="flex w-max flex-nowrap gap-6 pb-2">
                 {trip.dailyItineraries.map((day) => (
                   <div key={day.date} className="w-64 shrink-0 min-w-0 max-w-64">
-                    <div className="sticky top-0 bg-secondary text-secondary-foreground rounded-t-lg px-4 py-2 text-sm font-medium text-center">
+                    <div className="sticky top-0 bg-table-header text-table-header-foreground rounded-t-lg px-4 py-2 text-sm font-medium text-center">
                       {new Date(day.date).toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit', weekday: 'short' })}
                     </div>
                     <div className="space-y-3 mt-3">
@@ -345,7 +345,7 @@ const TripDetail = () => {
         {trip.otherNotes && (
           <div className="bg-card rounded-xl p-6 shadow-sm">
             <h3 className="font-semibold text-foreground mb-4">其他</h3>
-            <div className="text-sm text-muted-foreground" dangerouslySetInnerHTML={{ __html: trip.otherNotes }} />
+            <div className="rich-html text-sm text-table-foreground" dangerouslySetInnerHTML={{ __html: trip.otherNotes }} />
           </div>
         )}
       </div>

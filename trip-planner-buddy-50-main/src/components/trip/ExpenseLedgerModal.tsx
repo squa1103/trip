@@ -170,7 +170,7 @@ const ExpenseLedgerModal = ({ tripId, open, onOpenChange }: Props) => {
                 <Receipt className="h-10 w-10 text-muted-foreground/50 mx-auto mb-3" />
                 <p className="text-sm font-medium text-foreground">目前沒有記帳紀錄</p>
                 <p className="text-xs text-muted-foreground mt-1">點上方「新增花費」開始記帳</p>
-                <Button type="button" variant="secondary" className="mt-4 gap-1.5" onClick={() => setAddOpen(true)}>
+                <Button type="button" className="mt-4 gap-1.5" onClick={() => setAddOpen(true)}>
                   <Plus className="h-4 w-4" />
                   新增花費
                 </Button>

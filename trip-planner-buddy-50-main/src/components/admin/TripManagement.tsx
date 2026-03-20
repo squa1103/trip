@@ -101,7 +101,7 @@ const TripManagement = () => {
     <div>
       <div className="flex items-center justify-between mb-6">
         <p className="text-muted-foreground text-sm">管理前台顯示之行程</p>
-        <button onClick={handleNew} className="flex items-center gap-1 px-4 py-2 rounded-lg bg-secondary text-secondary-foreground text-sm font-medium hover:opacity-90">
+        <button onClick={handleNew} className="flex items-center gap-1 px-4 py-2 rounded-lg bg-action text-action-foreground text-sm font-medium hover:bg-action/90">
           <Plus className="h-4 w-4" /> 新增行程
         </button>
       </div>
@@ -110,20 +110,20 @@ const TripManagement = () => {
         <p className="text-muted-foreground text-sm text-center py-12">載入中...</p>
       ) : (
         <div className="bg-card rounded-xl shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm text-table-foreground">
             <thead>
-              <tr className="border-b border-border bg-muted/50">
-                <th className="text-left px-4 py-3 text-muted-foreground font-medium">封面</th>
-                <th className="text-left px-4 py-3 text-muted-foreground font-medium">標題</th>
-                <th className="text-left px-4 py-3 text-muted-foreground font-medium">日期</th>
-                <th className="text-left px-4 py-3 text-muted-foreground font-medium">分類</th>
-                <th className="text-left px-4 py-3 text-muted-foreground font-medium">狀態</th>
-                <th className="text-right px-4 py-3 text-muted-foreground font-medium w-24">操作</th>
+              <tr className="border-b border-border bg-table-header">
+                <th className="text-left px-4 py-3 text-table-header-foreground font-medium">封面</th>
+                <th className="text-left px-4 py-3 text-table-header-foreground font-medium">標題</th>
+                <th className="text-left px-4 py-3 text-table-header-foreground font-medium">日期</th>
+                <th className="text-left px-4 py-3 text-table-header-foreground font-medium">分類</th>
+                <th className="text-left px-4 py-3 text-table-header-foreground font-medium">狀態</th>
+                <th className="text-right px-4 py-3 text-table-header-foreground font-medium w-24">操作</th>
               </tr>
             </thead>
             <tbody>
               {trips.map((trip) => (
-                <tr key={trip.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                <tr key={trip.id} className="border-b border-border/60 bg-table hover:bg-muted/50 transition-colors">
                   <td className="px-4 py-3">
                     {trip.coverImage ? (
                       <img src={trip.coverImage} alt="" className="w-16 h-10 rounded object-cover" />

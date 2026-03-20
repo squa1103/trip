@@ -26,9 +26,19 @@ export default {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
         },
+        action: {
+          DEFAULT: "hsl(var(--action))",
+          foreground: "hsl(var(--action-foreground))",
+        },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
           foreground: "hsl(var(--secondary-foreground))",
+        },
+        table: {
+          DEFAULT: "hsl(var(--table))",
+          foreground: "hsl(var(--table-foreground))",
+          header: "hsl(var(--table-header))",
+          "header-foreground": "hsl(var(--table-header-foreground))",
         },
         destructive: {
           DEFAULT: "hsl(var(--destructive))",

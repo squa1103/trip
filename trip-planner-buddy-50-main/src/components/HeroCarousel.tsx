@@ -54,10 +54,10 @@ const HeroCarousel = () => {
           )}
         </div>
       ))}
-      <button onClick={prev} className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-primary/50 text-primary-foreground flex items-center justify-center hover:bg-primary/70 transition-colors">
+      <button onClick={prev} className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-primary/50 text-white flex items-center justify-center hover:bg-primary/70 transition-colors">
         <ChevronLeft className="h-5 w-5" />
       </button>
-      <button onClick={next} className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-primary/50 text-primary-foreground flex items-center justify-center hover:bg-primary/70 transition-colors">
+      <button onClick={next} className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-primary/50 text-white flex items-center justify-center hover:bg-primary/70 transition-colors">
         <ChevronRight className="h-5 w-5" />
       </button>
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
@@ -65,7 +65,7 @@ const HeroCarousel = () => {
           <button
             key={i}
             onClick={() => setCurrent(i)}
-            className={`w-3 h-3 rounded-full transition-colors ${i === current ? 'bg-secondary' : 'bg-primary-foreground/40'}`}
+            className={`w-3 h-3 rounded-full transition-colors ${i === current ? 'bg-secondary' : 'bg-white/50'}`}
           />
         ))}
       </div>

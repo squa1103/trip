@@ -17,7 +17,7 @@ const ActivityDetailModal = ({ activity, onClose }: Props) => {
           {activity.coverImage && (
             <img src={activity.coverImage} alt={activity.title} className="w-full h-48 object-cover rounded-t-xl" />
           )}
-          <button onClick={onClose} className="absolute top-3 right-3 w-8 h-8 rounded-full bg-primary/50 text-primary-foreground flex items-center justify-center hover:bg-primary/70">
+          <button onClick={onClose} className="absolute top-3 right-3 w-8 h-8 rounded-full bg-primary/50 text-white flex items-center justify-center hover:bg-primary/70">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -42,7 +42,7 @@ const ActivityDetailModal = ({ activity, onClose }: Props) => {
           {activity.notes && (
             <>
               <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">備註</p>
-              <div className="text-sm text-muted-foreground" dangerouslySetInnerHTML={{ __html: activity.notes }} />
+              <div className="rich-html text-sm text-table-foreground" dangerouslySetInnerHTML={{ __html: activity.notes }} />
             </>
           )}
 

@@ -78,7 +78,7 @@ const AccountManagement = () => {
         <p className="text-muted-foreground text-sm">管理後台登入之帳號密碼</p>
         <button
           onClick={() => setShowAdd(true)}
-          className="flex items-center gap-1 px-4 py-2 rounded-lg bg-secondary text-secondary-foreground text-sm font-medium hover:opacity-90"
+          className="flex items-center gap-1 px-4 py-2 rounded-lg bg-action text-action-foreground text-sm font-medium hover:bg-action/90"
         >
           <Plus className="h-4 w-4" /> 新增帳號
         </button>
@@ -116,7 +116,7 @@ const AccountManagement = () => {
             <button
               onClick={handleAdd}
               disabled={createMutation.isPending}
-              className="px-4 py-2 rounded-md bg-secondary text-secondary-foreground text-sm disabled:opacity-50"
+              className="px-4 py-2 rounded-md bg-action text-action-foreground text-sm hover:bg-action/90 disabled:opacity-50"
             >
               {createMutation.isPending ? '新增中...' : '確認'}
             </button>
@@ -134,18 +134,18 @@ const AccountManagement = () => {
         {isLoading ? (
           <p className="text-center text-muted-foreground text-sm py-8">載入中...</p>
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-full text-sm text-table-foreground">
             <thead>
-              <tr className="border-b border-border bg-muted/50">
-                <th className="text-left px-4 py-3 text-muted-foreground font-medium">Email</th>
-                <th className="text-left px-4 py-3 text-muted-foreground font-medium hidden sm:table-cell">建立時間</th>
-                <th className="text-right px-4 py-3 text-muted-foreground font-medium">操作</th>
+              <tr className="border-b border-border bg-table-header">
+                <th className="text-left px-4 py-3 text-table-header-foreground font-medium">Email</th>
+                <th className="text-left px-4 py-3 text-table-header-foreground font-medium hidden sm:table-cell">建立時間</th>
+                <th className="text-right px-4 py-3 text-table-header-foreground font-medium">操作</th>
               </tr>
             </thead>
             <tbody>
               {users.map((user) => (
                 <Fragment key={user.id}>
-                  <tr className="border-b border-border/50">
+                  <tr className="border-b border-border/60 bg-table">
                     <td className="px-4 py-3 text-foreground">
                       {user.email}
                       {user.id === currentUserId && (

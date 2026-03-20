@@ -235,7 +235,7 @@ const HomepageManagement = () => {
           disabled={!hasUnsavedChanges || isSaving}
           className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             hasUnsavedChanges
-              ? 'bg-primary text-primary-foreground hover:opacity-90'
+              ? 'bg-action text-action-foreground hover:bg-action/90'
               : 'bg-muted text-muted-foreground cursor-default'
           }`}
         >
@@ -260,7 +260,7 @@ const HomepageManagement = () => {
             markInteracted();
           }}
           aria-label="網站名稱"
-          className="w-full max-w-md px-4 py-2.5 rounded-lg border bg-background text-[#695D54] placeholder:text-[#695D54]/50 outline-none focus:ring-2 focus:ring-ring"
+          className="w-full max-w-md px-4 py-2.5 rounded-lg border bg-background text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-ring"
           placeholder="後台登入與側欄標題（未填則顯示「後台管理」）"
         />
       </div>
@@ -287,7 +287,7 @@ const HomepageManagement = () => {
           <input ref={logoInputRef} type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
           <button
             onClick={() => logoInputRef.current?.click()}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-secondary text-secondary-foreground text-sm font-medium hover:opacity-90"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-action text-action-foreground text-sm font-medium hover:bg-action/90"
           >
             <Upload className="h-4 w-4" /> 上傳 LOGO
           </button>
@@ -301,7 +301,7 @@ const HomepageManagement = () => {
           <input ref={videoInputRef} type="file" accept="video/*" onChange={handleVideoUpload} className="hidden" />
           <button
             onClick={() => videoInputRef.current?.click()}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-secondary text-secondary-foreground text-sm font-medium hover:opacity-90"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-action text-action-foreground text-sm font-medium hover:bg-action/90"
           >
             <Video className="h-4 w-4" /> 上傳影片
           </button>
@@ -330,7 +330,7 @@ const HomepageManagement = () => {
             <input ref={slideInputRef} type="file" accept="image/*" multiple onChange={handleSlideUpload} className="hidden" />
             <button
               onClick={() => slideInputRef.current?.click()}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-secondary text-secondary-foreground text-sm hover:opacity-90"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-action text-action-foreground text-sm hover:bg-action/90"
             >
               <Plus className="h-4 w-4" /> 上傳圖片
             </button>
