@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import SearchOverlay from './SearchOverlay';
+import NotificationBell from './NotificationBell';
 import { Trip } from '@/types/trip';
 import { supabase } from '@/lib/supabase';
 
@@ -83,6 +84,7 @@ const Header = ({ trips = [] }: Props) => {
             )}
           </button>
           <div className="flex items-center gap-4">
+            <NotificationBell />
             <button
               onClick={() => setSearchOpen(true)}
               className="p-2 rounded-full hover:bg-sidebar-accent transition-colors"

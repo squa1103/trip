@@ -1,3 +1,7 @@
 # Edge Function admin-auth: 不在閘道驗證 JWT，改由 function 內用 getUser(token) 驗證
 [functions.admin-auth]
 verify_jwt = false
+
+# 由 pg_cron 呼叫，僅驗證 x-cron-secret（見 todo-reminders/index.ts）
+[functions.todo-reminders]
+verify_jwt = false
