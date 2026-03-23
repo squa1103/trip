@@ -35,8 +35,9 @@ export default defineConfig(({ mode }) => {
       : {};
 
   return {
-    // Use relative asset paths so GitHub Pages works from any repository name.
-    base: mode === "production" ? "./" : "/",
+    // 🟢 修正重點：GitHub Pages 的專屬路徑。生產模式下強制使用 /trip/
+    base: mode === "production" ? "/trip/" : "/",
+    
     server: {
       host: "::",
       port: 8080,
@@ -52,5 +53,10 @@ export default defineConfig(({ mode }) => {
       },
       dedupe: ["react", "react-dom", "react/jsx-runtime"],
     },
+    // 🟢 確保 build 出來的檔案結構符合標準
+    build: {
+      outDir: "dist",
+      reportCompressedSize: false,
+    }
   };
 });
