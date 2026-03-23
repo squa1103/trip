@@ -1,0 +1,56 @@
+name: Deploy Vite to GitHub Pages
+
+on:
+  push:
+    branches: [ "develop_roy" ] # 當你推送到這個分支時觸發
+  workflow_dispatch: # 允許手動觸發
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          # 如果你的 package.json 在子目錄，請加上這行：
+          # cache-dependency-path: trip-planner-buddy-50-main/package.json
+
+      - name: Install dependencies
+        # 注意：如果 package.json 在子目錄，請加上 working-directory
+        # working-directory: ./trip-planner-buddy-50-main
+        run: npm ci
+
+      - name: Build
+        # working-directory: ./trip-planner-buddy-50-main
+        run: npm run build
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # 指向編譯後的資料夾
+          path: ./dist 
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
