@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - develop_roy
   workflow_dispatch:
 
 permissions:
