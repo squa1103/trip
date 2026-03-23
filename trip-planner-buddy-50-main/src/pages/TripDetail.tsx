@@ -10,6 +10,7 @@ import ShoppingModal from '@/components/trip/ShoppingModal';
 import ManageParticipants from '@/components/trip/ManageParticipants';
 import ExpenseLedgerModal from '@/components/trip/ExpenseLedgerModal';
 import { fetchTripById, updateTrip, updateTripLists } from '@/lib/trips';
+import { computeRemindTimeISO, datetimeLocalToISO, formatDateTimeZhTw, remindOffsetOptions } from '@/lib/todoReminders';
 
 const TripDetail = () => {
   const { id } = useParams();
@@ -44,6 +45,12 @@ const TripDetail = () => {
   const [ledgerOpen, setLedgerOpen] = useState(false);
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [newTodo, setNewTodo] = useState('');
+  const [newTodoDueAt, setNewTodoDueAt] = useState(() => {
+    const d = new Date(Date.now() + 30 * 60_000);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  });
+  const [newTodoRemindOffsetMinutes, setNewTodoRemindOffsetMinutes] = useState<number>(60);
   const [showTodoInput, setShowTodoInput] = useState(false);
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -102,7 +109,19 @@ const TripDetail = () => {
 
   const addTodo = () => {
     if (!newTodo.trim()) return;
-    const next = [...todos, { id: Date.now().toString(), text: newTodo.trim(), checked: false }];
+    const dueAtIso = datetimeLocalToISO(newTodoDueAt);
+    if (!dueAtIso) return;
+    const remindTimeIso = computeRemindTimeISO(dueAtIso, newTodoRemindOffsetMinutes);
+    const next = [
+      ...todos,
+      {
+        id: Date.now().toString(),
+        text: newTodo.trim(),
+        checked: false,
+        remindTime: remindTimeIso,
+        remindOffset: newTodoRemindOffsetMinutes,
+      },
+    ];
     setTodos(next);
     setNewTodo('');
     setShowTodoInput(false);
@@ -191,13 +210,20 @@ const TripDetail = () => {
                 >
                   {todo.checked && <Check className="h-3 w-3 text-secondary-foreground" />}
                 </button>
-                <span className={`text-sm ${todo.checked ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-                  {todo.text}
-                </span>
+                <div className="min-w-0 flex-1 flex flex-col">
+                  <span className={`text-sm ${todo.checked ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+                    {todo.text}
+                  </span>
+                  {todo.remindTime && (
+                    <span className={`text-xs mt-0.5 ${todo.checked ? 'text-muted-foreground/70' : 'text-muted-foreground'}`}>
+                      提醒：{formatDateTimeZhTw(todo.remindTime)}
+                    </span>
+                  )}
+                </div>
               </label>
             ))}
             {showTodoInput ? (
-              <div className="flex items-center gap-2 mt-2">
+              <div className="flex items-center gap-2 mt-2 flex-wrap">
                 <input
                   autoFocus
                   value={newTodo}
@@ -206,8 +232,29 @@ const TripDetail = () => {
                   placeholder="輸入待辦事項..."
                   className="flex-1 text-sm px-3 py-1.5 rounded-md border bg-background text-foreground outline-none focus:ring-1 focus:ring-ring"
                 />
-                <button onClick={addTodo} className="px-3 py-1.5 text-sm rounded-md bg-action text-action-foreground hover:bg-action/90">新增</button>
-                <button onClick={() => setShowTodoInput(false)} className="text-muted-foreground"><X className="h-4 w-4" /></button>
+                <input
+                  type="datetime-local"
+                  value={newTodoDueAt}
+                  onChange={(e) => setNewTodoDueAt(e.target.value)}
+                  className="text-sm px-3 py-1.5 rounded-md border bg-background text-foreground outline-none focus:ring-1 focus:ring-ring"
+                />
+                <select
+                  value={newTodoRemindOffsetMinutes}
+                  onChange={(e) => setNewTodoRemindOffsetMinutes(Number(e.target.value))}
+                  className="text-sm px-3 py-1.5 rounded-md border bg-background text-foreground outline-none focus:ring-1 focus:ring-ring"
+                >
+                  {remindOffsetOptions.map((opt) => (
+                    <option key={opt.minutes} value={opt.minutes}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <button onClick={addTodo} className="px-3 py-1.5 text-sm rounded-md bg-action text-action-foreground hover:bg-action/90">
+                  新增
+                </button>
+                <button onClick={() => setShowTodoInput(false)} className="text-muted-foreground">
+                  <X className="h-4 w-4" />
+                </button>
               </div>
             ) : (
               <button

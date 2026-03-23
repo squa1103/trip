@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect, DragEvent } from 'react';
-import { ArrowLeft, Plus, Trash2, Upload, GripVertical, Users, Luggage, ShoppingCart } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Upload, GripVertical, Users, Luggage, ShoppingCart, Check, X } from 'lucide-react';
 import { Trip, DailyItinerary, ActivityCard, HotelInfo, LuggageCategory, ShoppingItem } from '@/types/trip';
 import LuggageModal from '@/components/trip/LuggageModal';
 import ShoppingModal from '@/components/trip/ShoppingModal';
 import TripExpensesPanel from '@/components/admin/TripExpensesPanel';
 import ManageParticipants from '@/components/trip/ManageParticipants';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { computeRemindTimeISO, datetimeLocalToISO, formatDateTimeZhTw, remindOffsetOptions } from '@/lib/todoReminders';
 
 interface Props {
   trip: Trip;
@@ -29,6 +30,14 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
   const [luggageOpen, setLuggageOpen] = useState(false);
   const [shoppingOpen, setShoppingOpen] = useState(false);
   const [participantsOpen, setParticipantsOpen] = useState(false);
+  const [showTodoInput, setShowTodoInput] = useState(false);
+  const [newTodo, setNewTodo] = useState('');
+  const [newTodoDueAt, setNewTodoDueAt] = useState(() => {
+    const d = new Date(Date.now() + 30 * 60_000);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  });
+  const [newTodoRemindOffsetMinutes, setNewTodoRemindOffsetMinutes] = useState<number>(60);
 
   useEffect(() => {
     setTrip((prev) => ({ ...prev, luggageList: initial.luggageList, shoppingList: initial.shoppingList }));
@@ -91,6 +100,32 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
 
   const update = <K extends keyof Trip>(key: K, value: Trip[K]) => {
     setTrip((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const toggleTodo = (todoId: string) => {
+    const next = trip.todos.map((t) => (t.id === todoId ? { ...t, checked: !t.checked } : t));
+    update('todos', next);
+  };
+
+  const addTodo = () => {
+    if (!newTodo.trim()) return;
+    const dueAtIso = datetimeLocalToISO(newTodoDueAt);
+    if (!dueAtIso) return;
+    const remindTimeIso = computeRemindTimeISO(dueAtIso, newTodoRemindOffsetMinutes);
+
+    const next = [
+      ...trip.todos,
+      {
+        id: Date.now().toString(),
+        text: newTodo.trim(),
+        checked: false,
+        remindTime: remindTimeIso,
+        remindOffset: newTodoRemindOffsetMinutes,
+      },
+    ];
+    update('todos', next);
+    setNewTodo('');
+    setShowTodoInput(false);
   };
 
   const updateFlight = (direction: 'departure' | 'return', field: string, value: string | number) => {
@@ -401,6 +436,100 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
               </div>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Section 3.5: Todos */}
+      <div className="bg-card rounded-xl p-6 shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-foreground">待辦事項</h3>
+          {showTodoInput ? null : (
+            <button
+              type="button"
+              onClick={() => setShowTodoInput(true)}
+              className="flex items-center gap-1 text-sm text-action hover:text-action/80"
+            >
+              <Plus className="h-4 w-4" /> 新增待辦
+            </button>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          {trip.todos.length === 0 && (
+            <p className="text-sm text-muted-foreground">尚未新增待辦事項</p>
+          )}
+
+          {trip.todos.map((todo) => (
+            <div key={todo.id} className="flex items-start gap-3">
+              <button
+                type="button"
+                onClick={() => toggleTodo(todo.id)}
+                className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
+                  todo.checked ? 'bg-secondary border-secondary' : 'border-border hover:border-secondary'
+                }`}
+              >
+                {todo.checked && <Check className="h-3 w-3 text-secondary-foreground" />}
+              </button>
+              <div className="min-w-0 flex-1">
+                <div className={`text-sm ${todo.checked ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+                  {todo.text}
+                </div>
+                {todo.remindTime && (
+                  <div className={`text-xs mt-1 ${todo.checked ? 'text-muted-foreground/70' : 'text-muted-foreground'}`}>
+                    提醒：{formatDateTimeZhTw(todo.remindTime)}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {showTodoInput && (
+            <div className="flex items-center gap-2 flex-wrap pt-2">
+              <input
+                autoFocus
+                value={newTodo}
+                onChange={(e) => setNewTodo(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addTodo()}
+                placeholder="輸入待辦事項..."
+                className="flex-1 min-w-[160px] text-sm px-3 py-1.5 rounded-md border bg-background text-foreground outline-none focus:ring-1 focus:ring-ring"
+              />
+
+              <input
+                type="datetime-local"
+                value={newTodoDueAt}
+                onChange={(e) => setNewTodoDueAt(e.target.value)}
+                className="text-sm px-3 py-1.5 rounded-md border bg-background text-foreground outline-none focus:ring-1 focus:ring-ring"
+              />
+
+              <select
+                value={newTodoRemindOffsetMinutes}
+                onChange={(e) => setNewTodoRemindOffsetMinutes(Number(e.target.value))}
+                className="text-sm px-3 py-1.5 rounded-md border bg-background text-foreground outline-none focus:ring-1 focus:ring-ring"
+              >
+                {remindOffsetOptions.map((opt) => (
+                  <option key={opt.minutes} value={opt.minutes}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                type="button"
+                onClick={addTodo}
+                className="px-3 py-1.5 text-sm rounded-md bg-action text-action-foreground hover:bg-action/90"
+              >
+                新增
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowTodoInput(false)}
+                className="text-muted-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
