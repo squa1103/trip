@@ -7,8 +7,8 @@ import SearchOverlay from './SearchOverlay';
 import { Trip } from '@/types/trip';
 import { supabase } from '@/lib/supabase';
 import { fetchTrips } from '@/lib/trips';
-import { getActiveUnreadReminders, formatDateTimeZhTw, loadReminderAckSet, saveReminderAckSet } from '@/lib/todoReminders';
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
+import { getTriggeredReminders, formatDateTimeZhTw, loadReminderAckSet, saveReminderAckSet } from '@/lib/todoReminders';
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@/components/ui/sheet';
 
 interface Props {
   trips?: Trip[];
@@ -23,6 +23,7 @@ const Header = ({ trips = [] }: Props) => {
   const navigate = useNavigate();
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [acked, setAcked] = useState<Set<string>>(() => loadReminderAckSet());
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const fetchLogo = async () => {
     if (SUPABASE_URL && SUPABASE_ANON_KEY) {
@@ -90,8 +91,10 @@ const Header = ({ trips = [] }: Props) => {
   }, []);
 
   const effectiveTrips = trips.length > 0 ? trips : fetchedTrips;
-  const activeUnreadReminders = getActiveUnreadReminders(effectiveTrips, nowMs, acked);
-  const unreadCount = activeUnreadReminders.length;
+  const triggeredReminders = getTriggeredReminders(effectiveTrips, nowMs, acked);
+  const unreadReminders = triggeredReminders.filter((r) => !r.isRead);
+  const readReminders = triggeredReminders.filter((r) => r.isRead);
+  const unreadCount = unreadReminders.length;
 
   const handleAck = (ackKey: string) => {
     setAcked((prev) => {
@@ -121,8 +124,8 @@ const Header = ({ trips = [] }: Props) => {
             >
               <Search className="h-5 w-5" />
             </button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
+            <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
+              <SheetTrigger asChild>
                 <button
                   className="relative p-2 rounded-full hover:bg-sidebar-accent transition-colors"
                   aria-label="待辦提醒"
@@ -130,31 +133,60 @@ const Header = ({ trips = [] }: Props) => {
                   <Bell className="h-5 w-5" />
                   {unreadCount > 0 && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-destructive rounded-full" />}
                 </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-[340px]">
-                <DropdownMenuLabel>提醒事項</DropdownMenuLabel>
-                {activeUnreadReminders.length === 0 ? (
-                  <div className="px-2 py-2 text-sm text-muted-foreground">目前沒有提醒</div>
-                ) : (
-                  activeUnreadReminders.map((r) => (
-                    <DropdownMenuItem
-                      key={r.ackKey}
-                      onSelect={(e) => {
-                        // Radix 預設會把 item 當成選取事件，此處阻止預設行為後執行「標記已讀」
-                        e.preventDefault();
-                        handleAck(r.ackKey);
-                      }}
-                    >
-                      <div className="min-w-0 flex flex-col">
-                        <span className="text-sm font-medium text-foreground truncate">{r.tripTitle}</span>
-                        <span className="text-xs text-muted-foreground truncate">{r.todoText}</span>
-                        <span className="text-xs text-muted-foreground mt-1">{formatDateTimeZhTw(r.remindTimeIso)}</span>
-                      </div>
-                    </DropdownMenuItem>
-                  ))
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-full sm:w-3/4 sm:max-w-sm p-0">
+                <div className="p-6">
+                  <SheetTitle>提醒事項</SheetTitle>
+                  <div className="mt-4 space-y-6">
+                    <div>
+                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">未讀</div>
+                      {unreadReminders.length === 0 ? (
+                        <div className="mt-2 text-sm text-muted-foreground">目前沒有未讀提醒</div>
+                      ) : (
+                        <div className="mt-2 space-y-2">
+                          {unreadReminders.map((r) => (
+                            <button
+                              key={r.ackKey}
+                              type="button"
+                              onClick={() => handleAck(r.ackKey)}
+                              className="w-full text-left rounded-lg border border-border bg-card hover:bg-muted/50 px-3 py-2"
+                            >
+                              <div className="min-w-0">
+                                <div className="text-sm font-medium text-foreground truncate">{r.tripTitle}</div>
+                                <div className="text-xs text-muted-foreground truncate">{r.todoText}</div>
+                                <div className="text-xs text-muted-foreground mt-1">{formatDateTimeZhTw(r.remindTimeIso)}</div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">已讀</div>
+                      {readReminders.length === 0 ? (
+                        <div className="mt-2 text-sm text-muted-foreground">尚無已讀提醒</div>
+                      ) : (
+                        <div className="mt-2 space-y-2">
+                          {readReminders.map((r) => (
+                            <div
+                              key={r.ackKey}
+                              className="w-full text-left rounded-lg border border-border bg-muted/30 px-3 py-2"
+                            >
+                              <div className="min-w-0">
+                                <div className="text-sm font-medium text-foreground truncate">{r.tripTitle}</div>
+                                <div className="text-xs text-muted-foreground truncate">{r.todoText}</div>
+                                <div className="text-xs text-muted-foreground mt-1">{formatDateTimeZhTw(r.remindTimeIso)}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </SheetContent>
+            </Sheet>
             <button
               onClick={() => navigate('/admin/login')}
               className="px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 text-primary-foreground hover:bg-accent hover:text-accent-foreground"

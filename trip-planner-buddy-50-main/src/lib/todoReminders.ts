@@ -101,3 +101,42 @@ export function getActiveUnreadReminders(trips: Trip[], nowMs: number, acked: Se
   return out;
 }
 
+export interface TriggeredReminder extends ActiveReminder {
+  isRead: boolean;
+}
+
+/**
+ * 目前「已觸發」的提醒：todo 未完成且 remindTime 已到（remindTime <= nowMs）。
+ * isRead 由 localStorage ack 集合決定；未點擊則 isRead=false。
+ */
+export function getTriggeredReminders(trips: Trip[], nowMs: number, acked: Set<string>): TriggeredReminder[] {
+  const out: TriggeredReminder[] = [];
+
+  for (const trip of trips) {
+    for (const todo of trip.todos as TodoItem[]) {
+      if (todo.checked) continue;
+      if (!todo.remindTime) continue;
+
+      const remindMs = Date.parse(todo.remindTime);
+      if (Number.isNaN(remindMs)) continue;
+      if (remindMs > nowMs) continue; // not triggered yet
+
+      const ackKey = getReminderAckKey(trip.id, todo.id, todo.remindTime);
+      const isRead = acked.has(ackKey);
+
+      out.push({
+        tripId: trip.id,
+        tripTitle: trip.title,
+        todoId: todo.id,
+        todoText: todo.text,
+        remindTimeIso: todo.remindTime,
+        ackKey,
+        isRead,
+      });
+    }
+  }
+
+  out.sort((a, b) => Date.parse(a.remindTimeIso) - Date.parse(b.remindTimeIso));
+  return out;
+}
+

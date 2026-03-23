@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, DragEvent } from 'react';
-import { ArrowLeft, Plus, Trash2, Upload, GripVertical, Users, Luggage, ShoppingCart, Check, X } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Upload, GripVertical, Users, Luggage, ShoppingCart, Check, X, Clock } from 'lucide-react';
 import { Trip, DailyItinerary, ActivityCard, HotelInfo, LuggageCategory, ShoppingItem } from '@/types/trip';
 import LuggageModal from '@/components/trip/LuggageModal';
 import ShoppingModal from '@/components/trip/ShoppingModal';
@@ -38,10 +38,16 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   });
   const [newTodoRemindOffsetMinutes, setNewTodoRemindOffsetMinutes] = useState<number>(60);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
     setTrip((prev) => ({ ...prev, luggageList: initial.luggageList, shoppingList: initial.shoppingList }));
   }, [initial.luggageList, initial.shoppingList]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
   // Drag state for activities
   const dragActivity = useRef<{ dayIdx: number; actIdx: number } | null>(null);
   const dragOverActivity = useRef<{ dayIdx: number; actIdx: number } | null>(null);
@@ -460,7 +466,13 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
           )}
 
           {trip.todos.map((todo) => (
-            <div key={todo.id} className="flex items-start gap-3">
+            (() => {
+              const remindMs = todo.remindTime ? Date.parse(todo.remindTime) : NaN;
+              const isExpired = !todo.checked && Number.isFinite(remindMs) && remindMs <= nowMs;
+              const isSoon = !todo.checked && Number.isFinite(remindMs) && remindMs > nowMs && remindMs <= nowMs + 60 * 60_000;
+
+              return (
+                <div key={todo.id} className={`flex items-start gap-3 rounded-lg p-2 ${isExpired ? 'bg-muted/40' : 'bg-transparent'}`}>
               <button
                 type="button"
                 onClick={() => toggleTodo(todo.id)}
@@ -475,36 +487,39 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
                   {todo.text}
                 </div>
                 {todo.remindTime && (
-                  <div className={`text-xs mt-1 ${todo.checked ? 'text-muted-foreground/70' : 'text-muted-foreground'}`}>
-                    提醒：{formatDateTimeZhTw(todo.remindTime)}
+                  <div className={`text-xs mt-1 ${todo.checked ? 'text-muted-foreground/70' : 'text-muted-foreground'} flex items-center gap-1`}>
+                    {isSoon && <Clock className="h-3.5 w-3.5 animate-pulse text-amber-500 shrink-0" />}
+                    <span>提醒：{formatDateTimeZhTw(todo.remindTime)}</span>
                   </div>
                 )}
               </div>
-            </div>
+                </div>
+              );
+            })()
           ))}
 
           {showTodoInput && (
-            <div className="flex items-center gap-2 flex-wrap pt-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-2">
               <input
                 autoFocus
                 value={newTodo}
                 onChange={(e) => setNewTodo(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && addTodo()}
                 placeholder="輸入待辦事項..."
-                className="flex-1 min-w-[160px] text-sm px-3 py-1.5 rounded-md border bg-background text-foreground outline-none focus:ring-1 focus:ring-ring"
+                className="w-full sm:flex-1 min-w-[160px] text-sm px-3 py-1.5 rounded-md border bg-background text-foreground outline-none focus:ring-1 focus:ring-ring"
               />
 
               <input
                 type="datetime-local"
                 value={newTodoDueAt}
                 onChange={(e) => setNewTodoDueAt(e.target.value)}
-                className="text-sm px-3 py-1.5 rounded-md border bg-background text-foreground outline-none focus:ring-1 focus:ring-ring"
+                className="w-full sm:w-auto text-sm px-3 py-1.5 rounded-md border bg-background text-foreground outline-none focus:ring-1 focus:ring-ring"
               />
 
               <select
                 value={newTodoRemindOffsetMinutes}
                 onChange={(e) => setNewTodoRemindOffsetMinutes(Number(e.target.value))}
-                className="text-sm px-3 py-1.5 rounded-md border bg-background text-foreground outline-none focus:ring-1 focus:ring-ring"
+                className="w-full sm:w-auto text-sm px-3 py-1.5 rounded-md border bg-background text-foreground outline-none focus:ring-1 focus:ring-ring"
               >
                 {remindOffsetOptions.map((opt) => (
                   <option key={opt.minutes} value={opt.minutes}>
@@ -516,7 +531,7 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
               <button
                 type="button"
                 onClick={addTodo}
-                className="px-3 py-1.5 text-sm rounded-md bg-action text-action-foreground hover:bg-action/90"
+                className="w-full sm:w-auto px-3 py-1.5 text-sm rounded-md bg-action text-action-foreground hover:bg-action/90"
               >
                 新增
               </button>
@@ -524,7 +539,7 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
               <button
                 type="button"
                 onClick={() => setShowTodoInput(false)}
-                className="text-muted-foreground"
+                className="w-full sm:w-auto text-muted-foreground"
               >
                 <X className="h-4 w-4" />
               </button>
