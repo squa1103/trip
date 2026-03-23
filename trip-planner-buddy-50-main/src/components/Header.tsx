@@ -3,6 +3,8 @@ import { Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import SearchOverlay from './SearchOverlay';
 import NotificationBell from './NotificationBell';
+import NotificationBell from './NotificationBell';
+import NotificationBell from './NotificationBell';
 import { Trip } from '@/types/trip';
 import { supabase } from '@/lib/supabase';
 
