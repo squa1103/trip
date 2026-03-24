@@ -9,6 +9,44 @@ type Slide = { id: string; imageUrl: string; title?: string };
 const STORAGE_BUCKET = 'homepage-media';
 const VIDEO_PATH = 'intro-video';
 const LOGO_PATH = 'site-logo';
+const CAROUSEL_DIR = 'carousel';
+
+const resizeImageBlob = (source: Blob, maxWidth = 1920, quality = 0.92): Promise<Blob> =>
+  new Promise((resolve, reject) => {
+    const img = new window.Image();
+    const url = URL.createObjectURL(source);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > maxWidth) {
+        height = Math.round(height * (maxWidth / width));
+        width = maxWidth;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { reject(new Error('Canvas not supported')); return; }
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error('Canvas toBlob failed'))),
+        'image/jpeg',
+        quality,
+      );
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image load failed')); };
+    img.src = url;
+  });
+
+async function uploadSlideToStorage(slideId: string, blob: Blob): Promise<string> {
+  const filePath = `${CAROUSEL_DIR}/${slideId}.jpg`;
+  const { error } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .upload(filePath, blob, { contentType: 'image/jpeg', upsert: true });
+  if (error) throw new Error(`輪播圖上傳失敗：${error.message}`);
+  const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(filePath);
+  return `${urlData.publicUrl}?t=${Date.now()}`;
+}
 
 const HomepageManagement = () => {
   const [videoUrl, setVideoUrl] = useState(introVideoUrl);
@@ -24,8 +62,10 @@ const HomepageManagement = () => {
   const videoInputRef = useRef<HTMLInputElement>(null);
   const slideInputRef = useRef<HTMLInputElement>(null);
   const blobUrlRef = useRef<string | null>(null);
-  // Prevents the initial Supabase fetch from overwriting state after the user has made changes.
   const hasUserInteractedRef = useRef(false);
+
+  const pendingSlideFilesRef = useRef<Record<string, File>>({});
+  const removedSlideIdsRef = useRef<string[]>([]);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -48,7 +88,6 @@ const HomepageManagement = () => {
           setSiteName(row.value);
         }
       }
-      // 若資料庫沒有 LOGO，沿用 localStorage（相容舊資料）
       const hasLogoInRows = data?.some((r) => r.key === 'site_logo' && r.value);
       if (!hasLogoInRows) {
         const local = localStorage.getItem('siteLogo');
@@ -58,6 +97,9 @@ const HomepageManagement = () => {
     fetchSettings();
     return () => {
       if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+      for (const slide of Object.values(pendingSlideFilesRef.current)) {
+        void slide; // File objects don't need explicit cleanup
+      }
     };
   }, []);
 
@@ -110,19 +152,33 @@ const HomepageManagement = () => {
     markInteracted();
   };
 
-  const handleSlideUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSlideUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
     for (const file of Array.from(files)) {
-      const dataUrl = await fileToDataUrl(file);
-      setSlides((prev) => [...prev, { id: Date.now().toString() + Math.random(), imageUrl: dataUrl }]);
+      const id = crypto.randomUUID();
+      pendingSlideFilesRef.current[id] = file;
+      const previewUrl = URL.createObjectURL(file);
+      setSlides((prev) => [...prev, { id, imageUrl: previewUrl }]);
     }
     markInteracted();
     if (slideInputRef.current) slideInputRef.current.value = '';
   };
 
   const removeSlide = (id: string) => {
-    setSlides((prev) => prev.filter((s) => s.id !== id));
+    setSlides((prev) => {
+      const target = prev.find((s) => s.id === id);
+      if (target) {
+        if (target.imageUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(target.imageUrl);
+        }
+        if (!pendingSlideFilesRef.current[id]) {
+          removedSlideIdsRef.current.push(id);
+        }
+      }
+      delete pendingSlideFilesRef.current[id];
+      return prev.filter((s) => s.id !== id);
+    });
     markInteracted();
   };
 
@@ -130,7 +186,7 @@ const HomepageManagement = () => {
     setIsSaving(true);
     setSaveError(null);
     try {
-      // Logo → 上傳到 Storage，再存 URL 到資料庫（正式站與 localhost 共用）
+      // --- Logo ---
       let logoUrlToSave: string | null = null;
       if (logoPreview) {
         if (logoPreview.startsWith('data:')) {
@@ -159,10 +215,9 @@ const HomepageManagement = () => {
       else localStorage.removeItem('siteLogo');
       window.dispatchEvent(new CustomEvent('logoUpdated', { detail: { logoUrl: logoUrlToSave } }));
 
-      // Video → Supabase Storage (only if a new file was selected)
+      // --- Video ---
       let finalVideoUrl = videoUrl;
       if (pendingVideoFile) {
-        // Try uploading; if file already exists, remove it first then re-upload
         let { error: uploadError } = await supabase.storage
           .from(STORAGE_BUCKET)
           .upload(VIDEO_PATH, pendingVideoFile, { contentType: pendingVideoFile.type });
@@ -179,9 +234,7 @@ const HomepageManagement = () => {
             : uploadError.message;
           throw new Error(`影片上傳失敗：${hint}`);
         }
-        const { data: urlData } = supabase.storage
-          .from(STORAGE_BUCKET)
-          .getPublicUrl(VIDEO_PATH);
+        const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(VIDEO_PATH);
         finalVideoUrl = `${urlData.publicUrl}?t=${Date.now()}`;
         if (blobUrlRef.current) {
           URL.revokeObjectURL(blobUrlRef.current);
@@ -191,18 +244,48 @@ const HomepageManagement = () => {
         setVideoUrl(finalVideoUrl);
       }
 
-      // Video URL + Carousel → Supabase DB
+      // --- Carousel: delete removed slides from Storage ---
+      if (removedSlideIdsRef.current.length > 0) {
+        const paths = removedSlideIdsRef.current.map((id) => `${CAROUSEL_DIR}/${id}.jpg`);
+        await supabase.storage.from(STORAGE_BUCKET).remove(paths);
+        removedSlideIdsRef.current = [];
+      }
+
+      // --- Carousel: upload new / migrate legacy base64 ---
+      const uploadedSlides: Slide[] = [];
+      for (const slide of slides) {
+        const pendingFile = pendingSlideFilesRef.current[slide.id];
+        if (pendingFile) {
+          const blob = await resizeImageBlob(pendingFile);
+          const publicUrl = await uploadSlideToStorage(slide.id, blob);
+          URL.revokeObjectURL(slide.imageUrl);
+          uploadedSlides.push({ ...slide, imageUrl: publicUrl });
+          delete pendingSlideFilesRef.current[slide.id];
+        } else if (slide.imageUrl.startsWith('data:')) {
+          const res = await fetch(slide.imageUrl);
+          const rawBlob = await res.blob();
+          const blob = await resizeImageBlob(rawBlob);
+          const publicUrl = await uploadSlideToStorage(slide.id, blob);
+          uploadedSlides.push({ ...slide, imageUrl: publicUrl });
+        } else {
+          uploadedSlides.push(slide);
+        }
+      }
+
+      // --- Save to DB ---
       const [videoResult, slidesResult] = await Promise.all([
         supabase
           .from('homepage_settings')
           .upsert({ key: 'intro_video', value: finalVideoUrl }, { onConflict: 'key' }),
         supabase
           .from('homepage_settings')
-          .upsert({ key: 'carousel_slides', value: slides }, { onConflict: 'key' }),
+          .upsert({ key: 'carousel_slides', value: uploadedSlides }, { onConflict: 'key' }),
       ]);
 
       if (videoResult.error) throw new Error(`影片網址儲存失敗：${videoResult.error.message}`);
       if (slidesResult.error) throw new Error(`輪播圖儲存失敗：${slidesResult.error.message}`);
+
+      setSlides(uploadedSlides);
 
       const nameTrimmed = siteName.trim();
       const { error: siteNameError } = await supabase
@@ -325,7 +408,7 @@ const HomepageManagement = () => {
       {/* Carousel */}
       <div className="bg-card rounded-xl p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-foreground">輪播大圖 (1200×800)</h3>
+          <h3 className="font-semibold text-foreground">輪播大圖 (建議 1920×800 以上)</h3>
           <div>
             <input ref={slideInputRef} type="file" accept="image/*" multiple onChange={handleSlideUpload} className="hidden" />
             <button
