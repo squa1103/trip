@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Plus, Plane, Hotel, Luggage, ShoppingCart, Users, Receipt, X, ExternalLink, Check, Clock } from 'lucide-react';
+import { ArrowLeft, Plus, Plane, Hotel, Luggage, ShoppingCart, Users, Receipt, X, ExternalLink, Check, Clock, Trash2 } from 'lucide-react';
 import { Trip, ActivityCard as ActivityCardType, TodoItem, LuggageCategory, ShoppingItem } from '@/types/trip';
 import Header from '@/components/Header';
 import ActivityDetailModal from '@/components/trip/ActivityDetailModal';
@@ -136,6 +136,12 @@ const TripDetail = () => {
     mutation.mutate({ ...trip, todos: next });
   };
 
+  const removeTodo = (todoId: string) => {
+    const next = todos.filter((t) => t.id !== todoId);
+    setTodos(next);
+    mutation.mutate({ ...trip, todos: next });
+  };
+
   const handleLuggageUpdate = (next: LuggageCategory[]) => {
     queryClient.setQueryData<Trip>(['trip', id], (old) =>
       old ? { ...old, luggageList: next } : old
@@ -221,30 +227,44 @@ const TripDetail = () => {
                 const isSoon = !todo.checked && Number.isFinite(remindMs) && remindMs > nowMs && remindMs <= nowMs + 60 * 60_000;
 
                 return (
-                  <label
+                  <div
                     key={todo.id}
-                    className={`flex items-center gap-3 cursor-pointer group rounded-lg p-2 ${isExpired ? 'bg-muted/40' : 'bg-transparent'}`}
+                    className={`flex items-center gap-3 group rounded-lg p-2 ${isExpired ? 'bg-muted/40' : 'bg-transparent'}`}
                   >
-                <button
-                  onClick={() => toggleTodo(todo.id)}
-                  className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
-                    todo.checked ? 'bg-secondary border-secondary' : 'border-border hover:border-secondary'
-                  }`}
-                >
-                  {todo.checked && <Check className="h-3 w-3 text-secondary-foreground" />}
-                </button>
-                <div className="min-w-0 flex-1 flex flex-col">
-                  <span className={`text-sm ${todo.checked ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-                    {todo.text}
-                  </span>
-                  {todo.remindTime && (
-                    <span className={`text-xs mt-0.5 ${todo.checked ? 'text-muted-foreground/70' : 'text-muted-foreground'} flex items-center gap-1`}>
-                      {isSoon && <Clock className="h-3.5 w-3.5 animate-pulse text-amber-500 shrink-0" />}
-                      <span>提醒：{formatDateTimeZhTw(todo.remindTime)}</span>
-                    </span>
-                  )}
-                </div>
-                  </label>
+                    <button
+                      type="button"
+                      onClick={() => toggleTodo(todo.id)}
+                      className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
+                        todo.checked ? 'bg-secondary border-secondary' : 'border-border hover:border-secondary'
+                      }`}
+                      aria-label={todo.checked ? '標為未完成' : '標為完成'}
+                    >
+                      {todo.checked && <Check className="h-3 w-3 text-secondary-foreground" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleTodo(todo.id)}
+                      className="min-w-0 flex-1 text-left flex flex-col cursor-pointer"
+                    >
+                      <span className={`text-sm ${todo.checked ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+                        {todo.text}
+                      </span>
+                      {todo.remindTime && (
+                        <span className={`text-xs mt-0.5 ${todo.checked ? 'text-muted-foreground/70' : 'text-muted-foreground'} flex items-center gap-1`}>
+                          {isSoon && <Clock className="h-3.5 w-3.5 animate-pulse text-amber-500 shrink-0" />}
+                          <span>提醒：{formatDateTimeZhTw(todo.remindTime)}</span>
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeTodo(todo.id)}
+                      className="shrink-0 p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                      aria-label="刪除待辦"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 );
               })()
             ))}

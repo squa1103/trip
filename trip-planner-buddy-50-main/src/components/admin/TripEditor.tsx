@@ -134,6 +134,13 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
     setShowTodoInput(false);
   };
 
+  const removeTodo = (todoId: string) => {
+    update(
+      'todos',
+      trip.todos.filter((t) => t.id !== todoId)
+    );
+  };
+
   const updateFlight = (direction: 'departure' | 'return', field: string, value: string | number) => {
     setTrip((prev) => ({
       ...prev,
@@ -482,7 +489,11 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
               >
                 {todo.checked && <Check className="h-3 w-3 text-secondary-foreground" />}
               </button>
-              <div className="min-w-0 flex-1">
+              <button
+                type="button"
+                onClick={() => toggleTodo(todo.id)}
+                className="min-w-0 flex-1 text-left"
+              >
                 <div className={`text-sm ${todo.checked ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
                   {todo.text}
                 </div>
@@ -492,7 +503,15 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
                     <span>提醒：{formatDateTimeZhTw(todo.remindTime)}</span>
                   </div>
                 )}
-              </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => removeTodo(todo.id)}
+                className="shrink-0 p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors mt-0.5"
+                aria-label="刪除待辦"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
                 </div>
               );
             })()
