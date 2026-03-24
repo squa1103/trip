@@ -52,7 +52,7 @@ const ShoppingModal = ({ open, onClose, tripId, shoppingList, onUpdate }: Props)
     const next = [
       ...items,
       {
-        id: Date.now().toString(),
+        id: crypto.randomUUID(),
         status: 'incomplete' as const,
         name: '',
         location: '',

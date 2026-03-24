@@ -6,6 +6,7 @@ import ShoppingModal from '@/components/trip/ShoppingModal';
 import TripExpensesPanel from '@/components/admin/TripExpensesPanel';
 import ManageParticipants from '@/components/trip/ManageParticipants';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { addDays, format, parseISO } from 'date-fns';
 import { computeRemindTimeISO, datetimeLocalToISO, formatDateTimeZhTw, remindOffsetOptions } from '@/lib/todoReminders';
 
 interface Props {
@@ -23,6 +24,10 @@ const fileToDataUrl = (file: File): Promise<string> =>
     reader.onload = () => resolve(reader.result as string);
     reader.readAsDataURL(file);
   });
+
+/** YYYY-MM-DD 純日曆加減：`parseISO` 對僅日期字串以本地日曆解析，搭配 `addDays`/`format` 避免原生 `Date` 與 `toISOString()` 混用。 */
+const addCalendarDaysIso = (isoDate: string, days: number): string =>
+  format(addDays(parseISO(isoDate.split('T')[0]), days), 'yyyy-MM-dd');
 
 const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTrip = false }: Props) => {
   const [trip, setTrip] = useState<Trip>({ ...initial });
@@ -122,7 +127,7 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
     const next = [
       ...trip.todos,
       {
-        id: Date.now().toString(),
+        id: crypto.randomUUID(),
         text: newTodo.trim(),
         checked: false,
         remindTime: remindTimeIso,
@@ -149,7 +154,7 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
   };
 
   const addHotel = () => {
-    const newHotel: HotelInfo = { id: Date.now().toString(), name: '', checkIn: '', checkOut: '', address: '', confirmationNumber: '' };
+    const newHotel: HotelInfo = { id: crypto.randomUUID(), name: '', checkIn: '', checkOut: '', address: '', confirmationNumber: '' };
     update('hotels', [...trip.hotels, newHotel]);
   };
 
@@ -158,12 +163,13 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
   };
 
   const addDay = () => {
-    const lastDate = trip.dailyItineraries.length > 0
-      ? new Date(trip.dailyItineraries[trip.dailyItineraries.length - 1].date)
-      : trip.startDate ? new Date(trip.startDate) : new Date();
-    const nextDate = new Date(lastDate);
-    nextDate.setDate(nextDate.getDate() + 1);
-    const dateStr = nextDate.toISOString().split('T')[0];
+    const lastYmd =
+      trip.dailyItineraries.length > 0
+        ? trip.dailyItineraries[trip.dailyItineraries.length - 1].date.split('T')[0]
+        : trip.startDate
+          ? trip.startDate.split('T')[0]
+          : format(new Date(), 'yyyy-MM-dd');
+    const dateStr = addCalendarDaysIso(lastYmd, 1);
     update('dailyItineraries', [...trip.dailyItineraries, { date: dateStr, activities: [] }]);
   };
 
@@ -175,7 +181,7 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
 
   const addActivity = (dayIndex: number) => {
     const newActivity: ActivityCard = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       coverImage: '',
       title: '',
       type: '景點',

@@ -53,6 +53,7 @@ const TripManagement = () => {
   const updateMutation = useMutation({
     mutationFn: updateTrip,
     onSuccess: (updatedTrip) => {
+      queryClient.setQueryData<Trip>(['trip', updatedTrip.id], updatedTrip);
       queryClient.invalidateQueries({ queryKey: ['trips'] });
       queryClient.invalidateQueries({ queryKey: ['trip', updatedTrip.id] });
     },

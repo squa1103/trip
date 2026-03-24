@@ -54,7 +54,7 @@ const LuggageModal = ({ open, onClose, tripId, luggageList, onUpdate }: Props) =
     if (participants.length === 0 || !resolvedTab) return;
     const next = [
       ...categories,
-      { id: Date.now().toString(), name: newCategory.trim(), items: [], participantId: resolvedTab },
+      { id: crypto.randomUUID(), name: newCategory.trim(), items: [], participantId: resolvedTab },
     ];
     setCategories(next);
     onUpdate?.(next);
@@ -71,7 +71,7 @@ const LuggageModal = ({ open, onClose, tripId, luggageList, onUpdate }: Props) =
     const text = newItems[catId]?.trim();
     if (!text) return;
     const next = categories.map((c) =>
-      c.id === catId ? { ...c, items: [...c.items, { id: Date.now().toString(), text, checked: false }] } : c,
+      c.id === catId ? { ...c, items: [...c.items, { id: crypto.randomUUID(), text, checked: false }] } : c,
     );
     setCategories(next);
     onUpdate?.(next);

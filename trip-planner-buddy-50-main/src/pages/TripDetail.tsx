@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Plus, Plane, Hotel, Luggage, ShoppingCart, Users, Receipt, X, ExternalLink, Check, Clock, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, Plane, Hotel, Luggage, ShoppingCart, Users, Receipt, X, ExternalLink, Check, Clock, Trash2, Image } from 'lucide-react';
 import { Trip, ActivityCard as ActivityCardType, TodoItem, LuggageCategory, ShoppingItem } from '@/types/trip';
 import Header from '@/components/Header';
 import ActivityDetailModal from '@/components/trip/ActivityDetailModal';
@@ -26,9 +26,9 @@ const TripDetail = () => {
 
   const mutation = useMutation({
     mutationFn: updateTrip,
-    onSuccess: () => {
+    onSuccess: (updatedTrip) => {
+      queryClient.setQueryData<Trip>(['trip', id], updatedTrip);
       queryClient.invalidateQueries({ queryKey: ['trips'] });
-      queryClient.invalidateQueries({ queryKey: ['trip', id] });
     },
   });
 
@@ -37,6 +37,7 @@ const TripDetail = () => {
       updateTripLists(id!, luggageList, shoppingList),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trips'] });
+      queryClient.invalidateQueries({ queryKey: ['trip', id] });
     },
   });
 
@@ -123,7 +124,7 @@ const TripDetail = () => {
     const next = [
       ...todos,
       {
-        id: Date.now().toString(),
+        id: crypto.randomUUID(),
         text: newTodo.trim(),
         checked: false,
         remindTime: remindTimeIso,
@@ -175,7 +176,16 @@ const TripDetail = () => {
 
       {/* Cover */}
       <div className="relative">
-        <img src={trip.coverImage} alt={trip.title} className="w-full h-64 md:h-96 object-cover" />
+        {trip.coverImage ? (
+          <img src={trip.coverImage} alt={trip.title} className="w-full h-64 md:h-96 object-cover" />
+        ) : (
+          <div
+            className="w-full h-64 md:h-96 bg-muted flex items-center justify-center"
+            aria-hidden
+          >
+            <Image className="h-20 w-20 text-muted-foreground/40" />
+          </div>
+        )}
         <div className="absolute inset-0 bg-hero-overlay" />
         <button
           onClick={() => navigate(-1)}

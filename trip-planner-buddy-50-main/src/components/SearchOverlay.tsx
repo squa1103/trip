@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, X } from 'lucide-react';
+import { Image, Search, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Trip } from '@/types/trip';
 
@@ -49,7 +49,16 @@ const SearchOverlay = ({ open, onClose, trips = [] }: SearchOverlayProps) => {
                 onClick={() => { navigate(`/trip/${trip.id}`); onClose(); }}
                 className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-muted transition-colors text-left"
               >
-                <img src={trip.coverImage} alt={trip.title} className="w-16 h-12 rounded-md object-cover" />
+                {trip.coverImage ? (
+                  <img src={trip.coverImage} alt={trip.title} className="w-16 h-12 rounded-md object-cover" />
+                ) : (
+                  <div
+                    className="w-16 h-12 rounded-md bg-muted shrink-0 flex items-center justify-center"
+                    aria-hidden
+                  >
+                    <Image className="h-5 w-5 text-muted-foreground/50" />
+                  </div>
+                )}
                 <div>
                   <p className="font-medium text-foreground">{trip.title}</p>
                   <p className="text-sm text-muted-foreground">{trip.startDate} ~ {trip.endDate}</p>

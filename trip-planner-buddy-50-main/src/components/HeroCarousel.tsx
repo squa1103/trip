@@ -5,9 +5,45 @@ import { supabase } from '@/lib/supabase';
 
 type Slide = { id: string; imageUrl: string; title?: string };
 
+const CAROUSEL_FALLBACK_IMAGE = mockCarouselSlides[0].imageUrl;
+
+/** 避免空字串、非 http(s)／相對路徑以外的無效值被當成 img src */
+function isValidImageUrl(url: string): boolean {
+  const u = url.trim();
+  if (!u) return false;
+  if (u.startsWith('/')) return true;
+  try {
+    const parsed = new URL(u);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function sanitizeCarouselSlides(raw: unknown): Slide[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Slide[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const item = raw[i];
+    if (!item || typeof item !== 'object') continue;
+    const row = item as Record<string, unknown>;
+    const imageUrl = typeof row.imageUrl === 'string' ? row.imageUrl : '';
+    if (!isValidImageUrl(imageUrl)) continue;
+    const id =
+      typeof row.id === 'string' && row.id.trim()
+        ? row.id
+        : `slide-${i}-${imageUrl.slice(0, 32)}`;
+    const slide: Slide = { id, imageUrl: imageUrl.trim() };
+    if (typeof row.title === 'string' && row.title.trim()) slide.title = row.title.trim();
+    out.push(slide);
+  }
+  return out;
+}
+
 const HeroCarousel = () => {
   const [current, setCurrent] = useState(0);
   const [slides, setSlides] = useState<Slide[]>(mockCarouselSlides);
+  const [fallbackSrcById, setFallbackSrcById] = useState<Record<string, true>>({});
 
   const fetchSlides = useCallback(async () => {
     const { data, error } = await supabase
@@ -16,8 +52,10 @@ const HeroCarousel = () => {
       .eq('key', 'carousel_slides')
       .single();
     if (!error && data?.value && Array.isArray(data.value) && data.value.length > 0) {
-      setSlides(data.value as Slide[]);
+      const next = sanitizeCarouselSlides(data.value);
+      setSlides(next.length > 0 ? next : mockCarouselSlides);
       setCurrent(0);
+      setFallbackSrcById({});
     }
   }, []);
 
@@ -43,7 +81,14 @@ const HeroCarousel = () => {
           key={slide.id}
           className={`absolute inset-0 transition-opacity duration-700 ${i === current ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         >
-          <img src={slide.imageUrl} alt={slide.title || ''} className="w-full h-full object-cover" />
+          <img
+            src={fallbackSrcById[slide.id] ? CAROUSEL_FALLBACK_IMAGE : slide.imageUrl}
+            alt={slide.title || ''}
+            className="w-full h-full object-cover"
+            onError={() => {
+              setFallbackSrcById((prev) => (prev[slide.id] ? prev : { ...prev, [slide.id]: true }));
+            }}
+          />
           <div className="absolute inset-0 bg-hero-overlay" />
           {slide.title && (
             <div className="absolute bottom-12 left-8 md:left-16">

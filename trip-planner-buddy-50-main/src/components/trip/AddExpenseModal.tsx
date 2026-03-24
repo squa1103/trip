@@ -188,7 +188,7 @@ const AddExpenseModal = ({ tripId, open, onOpenChange }: Props) => {
         splits.push({ participantId: pid, owedAmount: owed });
         sum += owed;
       }
-      if (Math.abs(sum - baseAmount) > 0.02) {
+      if (Math.abs(sum - baseAmount) > 0.01) {
         throw new Error(
           `分攤加總 (${sum.toFixed(2)} TWD) 需與新台幣等值 (${baseAmount.toFixed(2)} TWD) 一致（允許 0.01 誤差）`,
         );

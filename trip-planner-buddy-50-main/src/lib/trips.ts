@@ -88,10 +88,10 @@ export async function fetchTripById(id: string): Promise<Trip | null> {
 }
 
 export async function createTrip(trip: Trip): Promise<Trip> {
-  const row = tripToRow(trip);
+  const { id: _clientId, ...insertRow } = tripToRow(trip);
   const { data, error } = await supabase
     .from('trips')
-    .insert(row)
+    .insert(insertRow)
     .select()
     .single();
   if (error) throw error;
