@@ -11,6 +11,7 @@ import ManageParticipants from '@/components/trip/ManageParticipants';
 import ExpenseLedgerModal from '@/components/trip/ExpenseLedgerModal';
 import TripWeatherSidebar from '@/components/trip/TripWeatherSidebar';
 import { fetchTripById, updateTrip, updateTripLists } from '@/lib/trips';
+import { toast } from 'sonner';
 import {
   buildTodoDateTimeFields,
   formatDateTimeZhTw,
@@ -32,8 +33,15 @@ const TripDetail = () => {
   const mutation = useMutation({
     mutationFn: updateTrip,
     onSuccess: (updatedTrip) => {
-      queryClient.setQueryData<Trip>(['trip', id], updatedTrip);
+      queryClient.setQueryData<Trip>(['trip', id], (old) =>
+        old
+          ? { ...updatedTrip, shoppingList: old.shoppingList, luggageList: old.luggageList }
+          : updatedTrip
+      );
       queryClient.invalidateQueries({ queryKey: ['trips'] });
+    },
+    onError: (e: Error) => {
+      toast.error(e.message || '儲存失敗，請確認已登入後台帳號');
     },
   });
 
@@ -42,6 +50,9 @@ const TripDetail = () => {
       updateTripLists(id!, luggageList, shoppingList),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trips'] });
+    },
+    onError: (e: Error) => {
+      toast.error(e.message || '清單儲存失敗，請確認已登入後台帳號');
       queryClient.invalidateQueries({ queryKey: ['trip', id] });
     },
   });

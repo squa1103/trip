@@ -45,9 +45,9 @@ create policy "Auth users can insert trips"
   on public.trips for insert
   with check (auth.role() = 'authenticated');
 
-create policy "Auth users can update trips"
+create policy "Public update trips"
   on public.trips for update
-  using (auth.role() = 'authenticated');
+  using (true);
 
 create policy "Auth users can delete trips"
   on public.trips for delete
@@ -131,64 +131,70 @@ drop policy if exists "Public read trip_participants" on public.trip_participant
 drop policy if exists "Auth users can insert trip_participants" on public.trip_participants;
 drop policy if exists "Auth users can update trip_participants" on public.trip_participants;
 drop policy if exists "Auth users can delete trip_participants" on public.trip_participants;
+drop policy if exists "Public write trip_participants" on public.trip_participants;
+drop policy if exists "Public delete trip_participants" on public.trip_participants;
 
 create policy "Public read trip_participants"
   on public.trip_participants for select
   using (true);
 
-create policy "Auth users can insert trip_participants"
+create policy "Public write trip_participants"
   on public.trip_participants for insert
-  with check (auth.role() = 'authenticated');
+  with check (true);
 
 create policy "Auth users can update trip_participants"
   on public.trip_participants for update
   using (auth.role() = 'authenticated');
 
-create policy "Auth users can delete trip_participants"
+create policy "Public delete trip_participants"
   on public.trip_participants for delete
-  using (auth.role() = 'authenticated');
+  using (true);
 
 drop policy if exists "Public read expenses" on public.expenses;
 drop policy if exists "Auth users can insert expenses" on public.expenses;
 drop policy if exists "Auth users can update expenses" on public.expenses;
 drop policy if exists "Auth users can delete expenses" on public.expenses;
+drop policy if exists "Public write expenses" on public.expenses;
+drop policy if exists "Public delete expenses" on public.expenses;
 
 create policy "Public read expenses"
   on public.expenses for select
   using (true);
 
-create policy "Auth users can insert expenses"
+create policy "Public write expenses"
   on public.expenses for insert
-  with check (auth.role() = 'authenticated');
+  with check (true);
 
 create policy "Auth users can update expenses"
   on public.expenses for update
   using (auth.role() = 'authenticated');
 
-create policy "Auth users can delete expenses"
+create policy "Public delete expenses"
   on public.expenses for delete
-  using (auth.role() = 'authenticated');
+  using (true);
 
 drop policy if exists "Public read expense_splits" on public.expense_splits;
 drop policy if exists "Auth users can insert expense_splits" on public.expense_splits;
 drop policy if exists "Auth users can update expense_splits" on public.expense_splits;
 drop policy if exists "Auth users can delete expense_splits" on public.expense_splits;
+drop policy if exists "Public write expense_splits" on public.expense_splits;
+drop policy if exists "Public delete expense_splits" on public.expense_splits;
 
 create policy "Public read expense_splits"
   on public.expense_splits for select
   using (true);
 
-create policy "Auth users can insert expense_splits"
+create policy "Public write expense_splits"
   on public.expense_splits for insert
-  with check (auth.role() = 'authenticated');
+  with check (true);
 
 create policy "Auth users can update expense_splits"
   on public.expense_splits for update
   using (auth.role() = 'authenticated');
 
-create policy "Auth users can delete expense_splits"
+create policy "Public delete expense_splits"
   on public.expense_splits for delete
-  using (auth.role() = 'authenticated');
+  using (true);
 
 -- -----------------------------------------------------------------------------
 -- C) Storage policies (bucket: homepage-media)

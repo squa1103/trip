@@ -58,6 +58,16 @@ function parseAmount(s: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function areSetsEqual(a: Set<string>, b: Set<string>): boolean {
+  if (a.size !== b.size) return false;
+  for (const item of a) {
+    if (!b.has(item)) return false;
+  }
+  return true;
+}
+
+const EMPTY_PARTICIPANTS: Awaited<ReturnType<typeof getTripParticipants>> = [];
+
 /** 由外幣切到 TWD 以外時，若匯率仍為 1 則帶入粗略預設（可再自行修改） */
 const DEFAULT_EXCHANGE_RATE_BY_CURRENCY: Record<string, string> = {
   USD: '31.5',
@@ -79,13 +89,16 @@ const AddExpenseModal = ({ tripId, open, onOpenChange }: Props) => {
   /** 每人分攤金額字串 */
   const [owedStrByParticipant, setOwedStrByParticipant] = useState<Record<string, string>>({});
 
-  const { data: participants = [], isLoading } = useQuery({
+  const { data: participants = EMPTY_PARTICIPANTS, isLoading } = useQuery({
     queryKey: ['trip-participants', tripId],
     queryFn: () => getTripParticipants(tripId),
     enabled: open && !!tripId,
   });
 
   const wasOpenRef = useRef(false);
+
+  const participantIds = useMemo(() => participants.map((p) => p.id), [participants]);
+  const participantIdsKey = useMemo(() => participantIds.join(','), [participantIds]);
 
   useEffect(() => {
     if (!open) {
@@ -95,38 +108,40 @@ const AddExpenseModal = ({ tripId, open, onOpenChange }: Props) => {
       setExchangeRateStr('1');
       setPayerId('');
       setExpenseDate(todayISODate());
-      setIncludedIds(new Set());
-      setOwedStrByParticipant({});
+      setIncludedIds((prev) => (prev.size === 0 ? prev : new Set()));
+      setOwedStrByParticipant((prev) => (Object.keys(prev).length === 0 ? prev : {}));
       wasOpenRef.current = false;
       return;
     }
 
     if (!wasOpenRef.current) {
       wasOpenRef.current = true;
-      if (participants.length > 0) {
-        setIncludedIds(new Set(participants.map((p) => p.id)));
-        setPayerId(participants[0].id);
+      if (participantIds.length > 0) {
+        const allIncluded = new Set(participantIds);
+        setIncludedIds((prev) => (areSetsEqual(prev, allIncluded) ? prev : allIncluded));
+        setPayerId((prev) => (prev || participantIds[0]));
       }
       return;
     }
 
-    if (participants.length > 0) {
-      const ids = new Set(participants.map((p) => p.id));
-      setPayerId((prev) => (prev && ids.has(prev) ? prev : participants[0].id));
+    if (participantIds.length > 0) {
+      const ids = new Set(participantIds);
+      setPayerId((prev) => (prev && ids.has(prev) ? prev : participantIds[0]));
       setIncludedIds((prev) => {
         const next = new Set<string>();
         prev.forEach((id) => {
           if (ids.has(id)) next.add(id);
         });
-        if (next.size === 0) participants.forEach((p) => next.add(p.id));
-        return next;
+        if (next.size === 0) participantIds.forEach((id) => next.add(id));
+        return areSetsEqual(prev, next) ? prev : next;
       });
     }
-  }, [open, participants]);
+  }, [open, participantIdsKey]);
 
   const includedList = useMemo(() => participants.filter((p) => includedIds.has(p.id)), [participants, includedIds]);
 
   const includedParticipantIds = useMemo(() => includedList.map((p) => p.id), [includedList]);
+  const includedIdsKey = useMemo(() => includedParticipantIds.join(','), [includedParticipantIds]);
 
   /** 主檔幣別金額（原幣） */
   const amountTotalParsed = useMemo(() => parseAmount(amountStr), [amountStr]);
@@ -157,7 +172,7 @@ const AddExpenseModal = ({ tripId, open, onOpenChange }: Props) => {
       next[s.participantId] = String(s.owedAmount);
     });
     setOwedStrByParticipant(next);
-  }, [baseAmount, includedParticipantIds.join(',')]);
+  }, [baseAmount, includedIdsKey]);
 
   const toggleIncluded = (id: string, checked: boolean) => {
     setIncludedIds((prev) => {

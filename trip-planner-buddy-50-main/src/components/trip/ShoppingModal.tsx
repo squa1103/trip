@@ -1,9 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { X, Plus, Trash2, Loader2 } from 'lucide-react';
 import { ShoppingItem } from '@/types/trip';
 import { getTripParticipants } from '@/lib/expenses';
+import type { TripParticipant } from '@/types/expense';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+const EMPTY_PARTICIPANTS: TripParticipant[] = [];
 
 interface Props {
   open: boolean;
@@ -26,8 +29,9 @@ function belongsToParticipantTab(
 const ShoppingModal = ({ open, onClose, tripId, shoppingList, onUpdate }: Props) => {
   const [items, setItems] = useState<ShoppingItem[]>(shoppingList);
   const [tab, setTab] = useState('');
+  const backdropPointerDownRef = useRef(false);
 
-  const { data: participants = [], isLoading } = useQuery({
+  const { data: participants = EMPTY_PARTICIPANTS, isLoading } = useQuery({
     queryKey: ['trip-participants', tripId],
     queryFn: () => getTripParticipants(tripId),
     enabled: open && !!tripId,
@@ -150,7 +154,9 @@ const ShoppingModal = ({ open, onClose, tripId, shoppingList, onUpdate }: Props)
   );
 
   return (
-    <div className="fixed inset-0 z-50 bg-primary/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-primary/60 backdrop-blur-sm flex items-center justify-center p-4"
+      onPointerDown={(e) => { backdropPointerDownRef.current = e.target === e.currentTarget; }}
+      onClick={(e) => { if (!backdropPointerDownRef.current) return; backdropPointerDownRef.current = false; onClose(); }}>
       <div className="bg-card rounded-xl w-full max-w-3xl max-h-[85vh] overflow-y-auto shadow-2xl animate-slide-up" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between p-6 border-b border-border">
           <h3 className="text-lg font-bold text-foreground">採購清單</h3>

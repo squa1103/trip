@@ -118,7 +118,9 @@ export async function updateTripLists(
   const { error } = await supabase
     .from('trips')
     .update({ luggage_list: luggageList, shopping_list: shoppingList })
-    .eq('id', id);
+    .eq('id', id)
+    .select('id')
+    .single();
   if (error) throw error;
 }
 

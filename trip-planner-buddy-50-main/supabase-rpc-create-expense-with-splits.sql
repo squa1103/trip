@@ -59,4 +59,4 @@ comment on function public.create_expense_with_splits(
 
 grant execute on function public.create_expense_with_splits(
   uuid, text, numeric, text, numeric, uuid, date, jsonb
-) to authenticated;
+) to authenticated, anon;
