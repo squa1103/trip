@@ -211,7 +211,7 @@ const HomepageManagement = () => {
         .from('homepage_settings')
         .upsert({ key: 'site_logo', value: logoUrlToSave }, { onConflict: 'key' });
       if (logoError) throw new Error(`LOGO 儲存失敗：${logoError.message}`);
-      if (logoPreview) localStorage.setItem('siteLogo', logoPreview);
+      if (logoUrlToSave) localStorage.setItem('siteLogo', logoUrlToSave);
       else localStorage.removeItem('siteLogo');
       window.dispatchEvent(new CustomEvent('logoUpdated', { detail: { logoUrl: logoUrlToSave } }));
 
