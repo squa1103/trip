@@ -4,6 +4,7 @@ import { Trip } from '@/types/trip';
 
 interface Props {
   trips: Trip[];
+  loading?: boolean;
 }
 
 const OngoingTripsSection = ({ trips }: Props) => {

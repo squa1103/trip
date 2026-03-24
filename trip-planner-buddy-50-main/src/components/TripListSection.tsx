@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { ChevronLeft, ChevronRight, ChevronDown, MapPin } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, MapPin, Loader2 } from 'lucide-react';
 
 import TripCard from './TripCard';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -33,9 +33,10 @@ const categoryGroups: CategoryGroup[] = [
 
 interface Props {
   trips: Trip[];
+  loading?: boolean;
 }
 
-const TripListSection = ({ trips }: Props) => {
+const TripListSection = ({ trips, loading }: Props) => {
   const [activeCategory, setActiveCategory] = useState<Category>('domestic-planning');
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -91,7 +92,11 @@ const TripListSection = ({ trips }: Props) => {
 
           {/* Right: Trip cards carousel */}
           <div className="flex-1 min-w-0">
-            {filtered.length === 0 ? (
+            {loading ? (
+              <div className="flex items-center justify-center h-40 text-muted-foreground">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : filtered.length === 0 ? (
               <div className="flex items-center justify-center h-40 text-muted-foreground">
                 此分類尚無行程
               </div>

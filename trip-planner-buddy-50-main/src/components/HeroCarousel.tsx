@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { mockCarouselSlides } from '@/data/mockData';
 import { supabase } from '@/lib/supabase';
@@ -6,12 +7,14 @@ import { supabase } from '@/lib/supabase';
 type Slide = { id: string; imageUrl: string; title?: string };
 
 const CAROUSEL_FALLBACK_IMAGE = mockCarouselSlides[0].imageUrl;
+const CACHE_KEY = 'rq:carousel-slides';
+const CACHE_TS_KEY = 'rq:carousel-slides:ts';
 
-/** 避免空字串、非 http(s)／相對路徑以外的無效值被當成 img src */
 function isValidImageUrl(url: string): boolean {
   const u = url.trim();
   if (!u) return false;
   if (u.startsWith('/')) return true;
+  if (u.startsWith('data:image/')) return true;
   try {
     const parsed = new URL(u);
     return parsed.protocol === 'http:' || parsed.protocol === 'https:';
@@ -40,31 +43,68 @@ function sanitizeCarouselSlides(raw: unknown): Slide[] {
   return out;
 }
 
+async function fetchCarouselSlides(): Promise<Slide[]> {
+  const { data, error } = await supabase
+    .from('homepage_settings')
+    .select('value')
+    .eq('key', 'carousel_slides')
+    .single();
+
+  let slides: Slide[] = mockCarouselSlides;
+  if (!error && data?.value && Array.isArray(data.value) && data.value.length > 0) {
+    const sanitized = sanitizeCarouselSlides(data.value);
+    if (sanitized.length > 0) slides = sanitized;
+  }
+
+  try {
+    sessionStorage.setItem(CACHE_KEY, JSON.stringify(slides));
+    sessionStorage.setItem(CACHE_TS_KEY, String(Date.now()));
+  } catch { /* quota exceeded – ignore */ }
+
+  return slides;
+}
+
+function readCachedSlides(): Slide[] | undefined {
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY);
+    if (!raw) return undefined;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed as Slide[];
+  } catch { /* corrupt cache – ignore */ }
+  return undefined;
+}
+
+function readCachedTimestamp(): number {
+  try {
+    const ts = sessionStorage.getItem(CACHE_TS_KEY);
+    if (ts) return Number(ts);
+  } catch {}
+  return 0;
+}
+
 const HeroCarousel = () => {
+  const queryClient = useQueryClient();
+  const { data: slides = mockCarouselSlides } = useQuery({
+    queryKey: ['carousel-slides'],
+    queryFn: fetchCarouselSlides,
+    staleTime: 5 * 60 * 1000,
+    initialData: readCachedSlides,
+    initialDataUpdatedAt: readCachedTimestamp,
+  });
+
   const [current, setCurrent] = useState(0);
-  const [slides, setSlides] = useState<Slide[]>(mockCarouselSlides);
   const [fallbackSrcById, setFallbackSrcById] = useState<Record<string, true>>({});
 
-  const fetchSlides = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('homepage_settings')
-      .select('value')
-      .eq('key', 'carousel_slides')
-      .single();
-    if (!error && data?.value && Array.isArray(data.value) && data.value.length > 0) {
-      const next = sanitizeCarouselSlides(data.value);
-      setSlides(next.length > 0 ? next : mockCarouselSlides);
-      setCurrent(0);
-      setFallbackSrcById({});
-    }
-  }, []);
+  useEffect(() => {
+    setCurrent(0);
+    setFallbackSrcById({});
+  }, [slides]);
 
   useEffect(() => {
-    fetchSlides();
-    const handleUpdate = () => fetchSlides();
+    const handleUpdate = () => queryClient.invalidateQueries({ queryKey: ['carousel-slides'] });
     window.addEventListener('carouselUpdated', handleUpdate);
     return () => window.removeEventListener('carouselUpdated', handleUpdate);
-  }, [fetchSlides]);
+  }, [queryClient]);
 
   const next = useCallback(() => setCurrent((c) => (c + 1) % slides.length), [slides.length]);
   const prev = useCallback(() => setCurrent((c) => (c - 1 + slides.length) % slides.length), [slides.length]);

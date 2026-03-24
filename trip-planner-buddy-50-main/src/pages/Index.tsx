@@ -12,7 +12,7 @@ const Index = () => {
     return !sessionStorage.getItem('introShown');
   });
 
-  const { data: trips = [] } = useQuery({
+  const { data: trips = [], isLoading: tripsLoading } = useQuery({
     queryKey: ['trips'],
     queryFn: fetchTrips,
   });
@@ -28,8 +28,8 @@ const Index = () => {
       {showIntro && <VideoIntro />}
       <Header trips={trips} />
       <HeroCarousel />
-      <OngoingTripsSection trips={trips} />
-      <TripListSection trips={trips} />
+      <OngoingTripsSection trips={trips} loading={tripsLoading} />
+      <TripListSection trips={trips} loading={tripsLoading} />
       <footer className="py-8 bg-primary text-primary-foreground text-center text-sm">
         <p>© 2026 旅遊規劃. All Rights Reserved.</p>
       </footer>
