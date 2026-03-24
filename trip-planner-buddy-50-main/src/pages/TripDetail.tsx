@@ -9,6 +9,7 @@ import LuggageModal from '@/components/trip/LuggageModal';
 import ShoppingModal from '@/components/trip/ShoppingModal';
 import ManageParticipants from '@/components/trip/ManageParticipants';
 import ExpenseLedgerModal from '@/components/trip/ExpenseLedgerModal';
+import TripWeatherSidebar from '@/components/trip/TripWeatherSidebar';
 import { fetchTripById, updateTrip, updateTripLists } from '@/lib/trips';
 import { computeRemindTimeISO, datetimeLocalToISO, formatDateTimeZhTw, remindOffsetOptions } from '@/lib/todoReminders';
 
@@ -27,6 +28,7 @@ const TripDetail = () => {
     mutationFn: updateTrip,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trips'] });
+      queryClient.invalidateQueries({ queryKey: ['trip', id] });
     },
   });
 
@@ -181,8 +183,14 @@ const TripDetail = () => {
         </div>
       </div>
 
-      <div className="container mx-auto min-w-0 max-w-full px-4 py-8 space-y-10">
-        {/* 採購清單、記帳器置頂，方便進入頁面即可使用 */}
+      <div className="container mx-auto min-w-0 max-w-full px-4 py-8">
+        <div className="min-w-0 space-y-10">
+          <TripWeatherSidebar
+            weatherCities={trip.weatherCities ?? []}
+            onWeatherCitiesChange={(next) => mutation.mutate({ ...trip, weatherCities: next })}
+          />
+
+        {/* 採購清單、記帳器（天氣追蹤下方） */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           <button
             type="button"
@@ -419,6 +427,7 @@ const TripDetail = () => {
             <div className="rich-html text-sm text-table-foreground" dangerouslySetInnerHTML={{ __html: trip.otherNotes }} />
           </div>
         )}
+        </div>
       </div>
 
       {/* Modals */}

@@ -13,6 +13,8 @@ export interface Trip {
   luggageList: LuggageCategory[];
   shoppingList: ShoppingItem[];
   otherNotes: string;
+  /** 追蹤天氣的城市字串（建議格式：名稱, 國碼，如 Taipei, TW） */
+  weatherCities: string[];
 }
 
 export interface TodoItem {

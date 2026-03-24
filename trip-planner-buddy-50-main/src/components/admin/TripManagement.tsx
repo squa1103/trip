@@ -23,6 +23,7 @@ const emptyTrip = (): Trip => ({
   luggageList: [],
   shoppingList: [],
   otherNotes: '',
+  weatherCities: [],
 });
 
 const TripManagement = () => {
