@@ -50,31 +50,22 @@ async function fetchCarouselSlides(): Promise<Slide[]> {
     .eq('key', 'carousel_slides')
     .single();
 
-  // #region agent log
-  const rawLen = Array.isArray(data?.value) ? data.value.length : 0;
-  const rawUrls = Array.isArray(data?.value) ? (data.value as Record<string,unknown>[]).map(s => String(s.imageUrl ?? '').substring(0, 80)) : [];
-  fetch('http://127.0.0.1:7734/ingest/054f41fb-cd3b-4d1b-953e-11737b511e61',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2b75fe'},body:JSON.stringify({sessionId:'2b75fe',location:'HeroCarousel.tsx:fetch',message:'DB query result',data:{error:error?.message??null,hasData:!!data,rawLen,rawUrls},timestamp:Date.now(),hypothesisId:'H1,H2'})}).catch(()=>{});
-  // #endregion
+  if (error) {
+    console.warn('[HeroCarousel] Supabase query failed:', error.message);
+  }
 
-  let slides: Slide[] = mockCarouselSlides;
   if (!error && data?.value && Array.isArray(data.value) && data.value.length > 0) {
     const sanitized = sanitizeCarouselSlides(data.value);
-    // #region agent log
-    fetch('http://127.0.0.1:7734/ingest/054f41fb-cd3b-4d1b-953e-11737b511e61',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2b75fe'},body:JSON.stringify({sessionId:'2b75fe',location:'HeroCarousel.tsx:sanitize',message:'After sanitize',data:{sanitizedLen:sanitized.length,sanitizedUrls:sanitized.map(s=>s.imageUrl.substring(0,80))},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
-    // #endregion
-    if (sanitized.length > 0) slides = sanitized;
+    if (sanitized.length > 0) {
+      try {
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify(sanitized));
+        sessionStorage.setItem(CACHE_TS_KEY, String(Date.now()));
+      } catch { /* quota exceeded – ignore */ }
+      return sanitized;
+    }
   }
 
-  try {
-    sessionStorage.setItem(CACHE_KEY, JSON.stringify(slides));
-    sessionStorage.setItem(CACHE_TS_KEY, String(Date.now()));
-  } catch (e) {
-    // #region agent log
-    fetch('http://127.0.0.1:7734/ingest/054f41fb-cd3b-4d1b-953e-11737b511e61',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2b75fe'},body:JSON.stringify({sessionId:'2b75fe',location:'HeroCarousel.tsx:cache',message:'sessionStorage write failed',data:{err:String(e)},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
-    // #endregion
-  }
-
-  return slides;
+  return mockCarouselSlides;
 }
 
 function readCachedSlides(): Slide[] | undefined {
@@ -100,7 +91,7 @@ const HeroCarousel = () => {
   const { data: slides = mockCarouselSlides } = useQuery({
     queryKey: ['carousel-slides'],
     queryFn: fetchCarouselSlides,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
     initialData: readCachedSlides,
     initialDataUpdatedAt: readCachedTimestamp,
   });

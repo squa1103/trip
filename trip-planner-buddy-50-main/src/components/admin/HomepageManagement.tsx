@@ -300,6 +300,7 @@ const HomepageManagement = () => {
       setHasUnsavedChanges(false);
       setSaveSuccess(true);
     } catch (err) {
+      console.error('[HomepageManagement] Save failed:', err);
       setSaveError(err instanceof Error ? err.message : '儲存失敗，請重試');
     } finally {
       setIsSaving(false);
