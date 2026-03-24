@@ -21,10 +21,12 @@ export interface TodoItem {
   id: string;
   text: string;
   checked: boolean;
-  /** ISO string; 由前端計算（dueAt - remindOffset）並存到 todos jsonb */
-  remindTime?: string;
-  /** minutes; 例如 60 表示「1小時前」提醒 */
-  remindOffset?: number;
+  /** 事項／截止時間（選填，僅顯示用；未設定則為 null） */
+  dueAt?: string | null;
+  /** ISO string; 僅在設定提醒時寫入（dueAt - remindOffset），有值才會觸發通知 */
+  remindTime?: string | null;
+  /** minutes; 例如 60 表示「1小時前」提醒；未設定則為 null */
+  remindOffset?: number | null;
 }
 
 export interface FlightInfo {

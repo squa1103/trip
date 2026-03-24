@@ -1,6 +1,10 @@
 import type { Trip, TodoItem } from '@/types/trip';
 
+/** 選擇「不提醒」時不寫入 remindTime，也不會觸發通知 */
+export const NO_REMINDER_MINUTES = -1;
+
 export const remindOffsetOptions: Array<{ label: string; minutes: number }> = [
+  { label: '不提醒', minutes: NO_REMINDER_MINUTES },
   { label: '準時', minutes: 0 },
   { label: '30 分鐘前', minutes: 30 },
   { label: '1 小時前', minutes: 60 },
@@ -23,6 +27,25 @@ export function datetimeLocalToISO(datetimeLocal: string): string | null {
 export function computeRemindTimeISO(dueAtIso: string, remindOffsetMinutes: number): string {
   const dueMs = Date.parse(dueAtIso);
   return new Date(dueMs - remindOffsetMinutes * 60_000).toISOString();
+}
+
+/** 依 datetime-local 與提醒偏移建立欄位；無截止時間或選「不提醒」時 remindTime／remindOffset 為 null */
+export function buildTodoDateTimeFields(
+  dueLocal: string,
+  remindOffsetMinutes: number
+): { dueAt: string | null; remindTime: string | null; remindOffset: number | null } {
+  const dueAtIso = datetimeLocalToISO(dueLocal);
+  if (!dueAtIso) {
+    return { dueAt: null, remindTime: null, remindOffset: null };
+  }
+  if (remindOffsetMinutes === NO_REMINDER_MINUTES) {
+    return { dueAt: dueAtIso, remindTime: null, remindOffset: null };
+  }
+  return {
+    dueAt: dueAtIso,
+    remindTime: computeRemindTimeISO(dueAtIso, remindOffsetMinutes),
+    remindOffset: remindOffsetMinutes,
+  };
 }
 
 export function formatDateTimeZhTw(iso: string): string {
@@ -77,7 +100,7 @@ export function getActiveUnreadReminders(trips: Trip[], nowMs: number, acked: Se
   for (const trip of trips) {
     for (const todo of trip.todos as TodoItem[]) {
       if (todo.checked) continue;
-      if (!todo.remindTime) continue;
+      if (todo.remindTime == null || todo.remindTime === '') continue;
 
       const remindMs = Date.parse(todo.remindTime);
       if (Number.isNaN(remindMs)) continue;
@@ -115,7 +138,7 @@ export function getTriggeredReminders(trips: Trip[], nowMs: number, acked: Set<s
   for (const trip of trips) {
     for (const todo of trip.todos as TodoItem[]) {
       if (todo.checked) continue;
-      if (!todo.remindTime) continue;
+      if (todo.remindTime == null || todo.remindTime === '') continue;
 
       const remindMs = Date.parse(todo.remindTime);
       if (Number.isNaN(remindMs)) continue;

@@ -7,7 +7,12 @@ import TripExpensesPanel from '@/components/admin/TripExpensesPanel';
 import ManageParticipants from '@/components/trip/ManageParticipants';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { addDays, format, parseISO } from 'date-fns';
-import { computeRemindTimeISO, datetimeLocalToISO, formatDateTimeZhTw, remindOffsetOptions } from '@/lib/todoReminders';
+import {
+  buildTodoDateTimeFields,
+  formatDateTimeZhTw,
+  NO_REMINDER_MINUTES,
+  remindOffsetOptions,
+} from '@/lib/todoReminders';
 
 interface Props {
   trip: Trip;
@@ -37,12 +42,8 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
   const [participantsOpen, setParticipantsOpen] = useState(false);
   const [showTodoInput, setShowTodoInput] = useState(false);
   const [newTodo, setNewTodo] = useState('');
-  const [newTodoDueAt, setNewTodoDueAt] = useState(() => {
-    const d = new Date(Date.now() + 30 * 60_000);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  });
-  const [newTodoRemindOffsetMinutes, setNewTodoRemindOffsetMinutes] = useState<number>(60);
+  const [newTodoDueAt, setNewTodoDueAt] = useState('');
+  const [newTodoRemindOffsetMinutes, setNewTodoRemindOffsetMinutes] = useState<number>(NO_REMINDER_MINUTES);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
@@ -118,11 +119,18 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
     update('todos', next);
   };
 
+  const resetTodoForm = () => {
+    setNewTodo('');
+    setNewTodoDueAt('');
+    setNewTodoRemindOffsetMinutes(NO_REMINDER_MINUTES);
+  };
+
   const addTodo = () => {
     if (!newTodo.trim()) return;
-    const dueAtIso = datetimeLocalToISO(newTodoDueAt);
-    if (!dueAtIso) return;
-    const remindTimeIso = computeRemindTimeISO(dueAtIso, newTodoRemindOffsetMinutes);
+    const { dueAt, remindTime, remindOffset } = buildTodoDateTimeFields(
+      newTodoDueAt,
+      newTodoRemindOffsetMinutes
+    );
 
     const next = [
       ...trip.todos,
@@ -130,12 +138,13 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
         id: crypto.randomUUID(),
         text: newTodo.trim(),
         checked: false,
-        remindTime: remindTimeIso,
-        remindOffset: newTodoRemindOffsetMinutes,
+        dueAt,
+        remindTime,
+        remindOffset,
       },
     ];
     update('todos', next);
-    setNewTodo('');
+    resetTodoForm();
     setShowTodoInput(false);
   };
 
@@ -465,7 +474,10 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
           {showTodoInput ? null : (
             <button
               type="button"
-              onClick={() => setShowTodoInput(true)}
+              onClick={() => {
+                resetTodoForm();
+                setShowTodoInput(true);
+              }}
               className="flex items-center gap-1 text-sm text-action hover:text-action/80"
             >
               <Plus className="h-4 w-4" /> 新增待辦
@@ -480,9 +492,14 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
 
           {trip.todos.map((todo) => (
             (() => {
-              const remindMs = todo.remindTime ? Date.parse(todo.remindTime) : NaN;
-              const isExpired = !todo.checked && Number.isFinite(remindMs) && remindMs <= nowMs;
-              const isSoon = !todo.checked && Number.isFinite(remindMs) && remindMs > nowMs && remindMs <= nowMs + 60 * 60_000;
+              const anchorIso = todo.remindTime ?? todo.dueAt ?? null;
+              const anchorMs = anchorIso ? Date.parse(anchorIso) : NaN;
+              const isExpired = !todo.checked && Number.isFinite(anchorMs) && anchorMs <= nowMs;
+              const isSoon =
+                !todo.checked &&
+                Number.isFinite(anchorMs) &&
+                anchorMs > nowMs &&
+                anchorMs <= nowMs + 60 * 60_000;
 
               return (
                 <div key={todo.id} className={`flex items-start gap-3 rounded-lg p-2 ${isExpired ? 'bg-muted/40' : 'bg-transparent'}`}>
@@ -503,9 +520,16 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
                 <div className={`text-sm ${todo.checked ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
                   {todo.text}
                 </div>
+                {todo.dueAt && (
+                  <div
+                    className={`text-xs mt-1 ${todo.checked ? 'text-muted-foreground/70' : 'text-muted-foreground'} flex items-center gap-1 flex-wrap`}
+                  >
+                    {isSoon && <Clock className="h-3.5 w-3.5 animate-pulse text-amber-500 shrink-0" />}
+                    <span>{formatDateTimeZhTw(todo.dueAt)}</span>
+                  </div>
+                )}
                 {todo.remindTime && (
                   <div className={`text-xs mt-1 ${todo.checked ? 'text-muted-foreground/70' : 'text-muted-foreground'} flex items-center gap-1`}>
-                    {isSoon && <Clock className="h-3.5 w-3.5 animate-pulse text-amber-500 shrink-0" />}
                     <span>提醒：{formatDateTimeZhTw(todo.remindTime)}</span>
                   </div>
                 )}
@@ -537,21 +561,28 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
               <input
                 type="datetime-local"
                 value={newTodoDueAt}
-                onChange={(e) => setNewTodoDueAt(e.target.value)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setNewTodoDueAt(v);
+                  if (!v) setNewTodoRemindOffsetMinutes(NO_REMINDER_MINUTES);
+                }}
                 className="w-full sm:w-auto text-sm px-3 py-1.5 rounded-md border bg-background text-foreground outline-none focus:ring-1 focus:ring-ring"
               />
 
-              <select
-                value={newTodoRemindOffsetMinutes}
-                onChange={(e) => setNewTodoRemindOffsetMinutes(Number(e.target.value))}
-                className="w-full sm:w-auto text-sm px-3 py-1.5 rounded-md border bg-background text-foreground outline-none focus:ring-1 focus:ring-ring"
-              >
-                {remindOffsetOptions.map((opt) => (
-                  <option key={opt.minutes} value={opt.minutes}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
+              {newTodoDueAt ? (
+                <select
+                  value={newTodoRemindOffsetMinutes}
+                  onChange={(e) => setNewTodoRemindOffsetMinutes(Number(e.target.value))}
+                  aria-label="提醒時間"
+                  className="w-full sm:w-auto text-sm px-3 py-1.5 rounded-md border bg-background text-foreground outline-none focus:ring-1 focus:ring-ring"
+                >
+                  {remindOffsetOptions.map((opt) => (
+                    <option key={opt.minutes} value={opt.minutes}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
 
               <button
                 type="button"
@@ -563,7 +594,10 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
 
               <button
                 type="button"
-                onClick={() => setShowTodoInput(false)}
+                onClick={() => {
+                  resetTodoForm();
+                  setShowTodoInput(false);
+                }}
                 className="w-full sm:w-auto text-muted-foreground"
               >
                 <X className="h-4 w-4" />
