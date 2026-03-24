@@ -34,7 +34,12 @@ jobs:
         # working-directory: ./trip-planner-buddy-50-main
         run: npm ci
 
+      # Vite 會在「建置時」把 VITE_* 寫進 bundle；本機 .env 不會上傳到 GitHub，必須在 Repo 設定 Actions secrets。
       - name: Build
+        env:
+          VITE_WEATHER_API_KEY: ${{ secrets.VITE_WEATHER_API_KEY }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         # working-directory: ./trip-planner-buddy-50-main
         run: npm run build
 

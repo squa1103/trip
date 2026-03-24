@@ -26,6 +26,7 @@ create table if not exists public.trips (
   luggage_list      jsonb not null default '[]',
   shopping_list     jsonb not null default '[]',
   other_notes       text not null default '',
+  weather_cities    jsonb not null default '[]',
   created_at        timestamptz not null default now()
 );
 
