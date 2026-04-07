@@ -64,7 +64,15 @@ export interface ActivityCard {
   coverImage: string;
   title: string;
   type: string;
+  /** 活動時間，格式 HH:mm，例如 "09:30" */
+  time?: string;
   address: string;
+  /** Google Places place_id */
+  placeId?: string;
+  /** WGS84 緯度 */
+  lat?: number;
+  /** WGS84 經度 */
+  lng?: number;
   notes: string;
   price: number;
   payers: string;

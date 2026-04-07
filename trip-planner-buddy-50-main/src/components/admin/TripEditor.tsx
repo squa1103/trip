@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, DragEvent } from 'react';
-import { ArrowLeft, Plus, Trash2, Upload, GripVertical, Users, Luggage, ShoppingCart, Check, X, Clock } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Upload, GripVertical, Users, Luggage, ShoppingCart, Check, X, Clock, ChevronDown } from 'lucide-react';
 import { Trip, DailyItinerary, ActivityCard, HotelInfo, LuggageCategory, ShoppingItem } from '@/types/trip';
 import LuggageModal from '@/components/trip/LuggageModal';
 import ShoppingModal from '@/components/trip/ShoppingModal';
@@ -13,6 +13,10 @@ import {
   NO_REMINDER_MINUTES,
   remindOffsetOptions,
 } from '@/lib/todoReminders';
+import { loadGoogleMapsApi } from '@/lib/googleMaps';
+import ItineraryMap from '@/components/admin/ItineraryMap';
+import PlacesAutocomplete from '@/components/admin/PlacesAutocomplete';
+import type { PlaceData } from '@/components/admin/PlacesAutocomplete';
 
 interface Props {
   trip: Trip;
@@ -45,6 +49,11 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
   const [newTodoDueAt, setNewTodoDueAt] = useState('');
   const [newTodoRemindOffsetMinutes, setNewTodoRemindOffsetMinutes] = useState<number>(NO_REMINDER_MINUTES);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [activeDayIdx, setActiveDayIdx] = useState(0);
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  /** Day index whose markers are shown on the map; null = no markers */
+  const [mapDayIdx, setMapDayIdx] = useState<number | null>(null);
+  const [mapsReady, setMapsReady] = useState(false);
 
   useEffect(() => {
     setTrip((prev) => ({ ...prev, luggageList: initial.luggageList, shoppingList: initial.shoppingList }));
@@ -54,21 +63,20 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
     const id = window.setInterval(() => setNowMs(Date.now()), 60_000);
     return () => window.clearInterval(id);
   }, []);
+
+  // Load Google Maps API once on mount
+  useEffect(() => {
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
+    if (!apiKey) return;
+    loadGoogleMapsApi(apiKey).then(() => setMapsReady(true));
+  }, []);
+
   // Drag state for activities
   const dragActivity = useRef<{ dayIdx: number; actIdx: number } | null>(null);
   const dragOverActivity = useRef<{ dayIdx: number; actIdx: number } | null>(null);
 
-  // Drag state for day columns
-  const dragDay = useRef<number | null>(null);
-  const dragOverDay = useRef<number | null>(null);
-
   const handleActivityDragStart = (dayIdx: number, actIdx: number) => {
     dragActivity.current = { dayIdx, actIdx };
-  };
-
-  const handleActivityDragOver = (e: DragEvent, dayIdx: number, actIdx: number) => {
-    e.preventDefault();
-    dragOverActivity.current = { dayIdx, actIdx };
   };
 
   const handleActivityDrop = (e: DragEvent) => {
@@ -86,32 +94,33 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
     dragOverActivity.current = null;
   };
 
-  const handleDayDragStart = (dayIdx: number) => {
-    dragDay.current = dayIdx;
-  };
-
-  const handleDayDragOver = (e: DragEvent, dayIdx: number) => {
-    e.preventDefault();
-    dragOverDay.current = dayIdx;
-  };
-
-  const handleDayDrop = (e: DragEvent) => {
-    e.preventDefault();
-    const from = dragDay.current;
-    const to = dragOverDay.current;
-    if (from === null || to === null || from === to) return;
-
-    const updated = [...trip.dailyItineraries];
-    const [movedDay] = updated.splice(from, 1);
-    updated.splice(to, 0, movedDay);
-    update('dailyItineraries', updated);
-
-    dragDay.current = null;
-    dragOverDay.current = null;
-  };
-
   const update = <K extends keyof Trip>(key: K, value: Trip[K]) => {
     setTrip((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const toggleCard = (id: string, dayIdx: number) => {
+    setExpandedCards((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+    // Show markers for this day whenever the user interacts with a card
+    setMapDayIdx(dayIdx);
+  };
+
+  const handlePlaceSelect = (dayIdx: number, actId: string, place: PlaceData) => {
+    const updated = [...trip.dailyItineraries];
+    updated[dayIdx] = {
+      ...updated[dayIdx],
+      activities: updated[dayIdx].activities.map((a) =>
+        a.id !== actId
+          ? a
+          : { ...a, address: place.address, placeId: place.placeId, lat: place.lat, lng: place.lng }
+      ),
+    };
+    update('dailyItineraries', updated);
+    // Refresh map markers
+    setMapDayIdx(dayIdx);
   };
 
   const toggleTodo = (todoId: string) => {
@@ -235,13 +244,6 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
     if (!file) return;
     const dataUrl = await fileToDataUrl(file);
     update('coverImage', dataUrl);
-  };
-
-  const handleActivityImageUpload = async (dayIdx: number, actId: string, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const dataUrl = await fileToDataUrl(file);
-    updateActivity(dayIdx, actId, 'coverImage', dataUrl);
   };
 
   return (
@@ -383,88 +385,194 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
 
       {/* Section 3: Daily Itineraries */}
       <div className="bg-card rounded-xl p-6 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-foreground">每日行程</h3>
-          <button onClick={addDay} className="flex items-center gap-1 text-sm text-action hover:text-action/80">
-            <Plus className="h-4 w-4" /> 新增日期
-          </button>
-        </div>
-        <div className="flex gap-6 overflow-x-auto pb-4" style={{ scrollbarWidth: 'thin' }}>
+        <h3 className="font-semibold text-foreground">每日行程</h3>
+
+        {/* 橫向天數 Tab */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b" style={{ scrollbarWidth: 'thin' }}>
           {trip.dailyItineraries.map((day, dayIdx) => (
-            <div
-              key={dayIdx}
-              className="flex-shrink-0 w-72"
-              draggable
-              onDragStart={() => handleDayDragStart(dayIdx)}
-              onDragOver={(e) => handleDayDragOver(e, dayIdx)}
-              onDrop={handleDayDrop}
-            >
-              <div className="bg-table-header text-table-header-foreground rounded-t-lg px-4 py-2 text-sm font-medium text-center flex items-center gap-2 cursor-grab active:cursor-grabbing">
-                <GripVertical className="h-4 w-4 shrink-0 opacity-60" />
+            <div key={dayIdx} className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={() => { setActiveDayIdx(dayIdx); setMapDayIdx(dayIdx); }}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  activeDayIdx === dayIdx
+                    ? 'bg-action text-action-foreground'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                }`}
+              >
+                <span>Day {dayIdx + 1}</span>
                 <input
                   type="date"
                   value={day.date}
-                  onChange={(e) => updateDayDate(dayIdx, e.target.value)}
-                  className="bg-transparent text-table-header-foreground text-sm font-medium text-center outline-none border-none flex-1 cursor-pointer"
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => { e.stopPropagation(); updateDayDate(dayIdx, e.target.value); }}
+                  className="bg-transparent text-xs outline-none border-none cursor-pointer w-28"
                 />
-                <button
-                  onClick={() => update('dailyItineraries', trip.dailyItineraries.filter((_, i) => i !== dayIdx))}
-                  className="w-5 h-5 rounded-full border border-table-header-foreground/50 text-table-header-foreground/80 hover:bg-destructive hover:border-destructive hover:text-destructive-foreground flex items-center justify-center transition-colors shrink-0"
-                  title="刪除此日期"
-                >
-                  <span className="text-sm font-bold leading-none">−</span>
-                </button>
-              </div>
-              <div
-                className="space-y-3 mt-3 overflow-y-auto max-h-[680px] pr-1"
-                style={{ scrollbarWidth: 'thin' }}
-                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); dragOverActivity.current = { dayIdx, actIdx: day.activities.length }; }}
+              </button>
+              <button
+                onClick={() => {
+                  update('dailyItineraries', trip.dailyItineraries.filter((_, i) => i !== dayIdx));
+                  const next = Math.min(activeDayIdx, trip.dailyItineraries.length - 2);
+                  setActiveDayIdx(next < 0 ? 0 : next);
+                  setMapDayIdx(null);
+                }}
+                className="w-5 h-5 rounded-full border border-muted-foreground/40 text-muted-foreground hover:bg-destructive hover:border-destructive hover:text-destructive-foreground flex items-center justify-center transition-colors"
+                title="刪除此日期"
+              >
+                <span className="text-sm font-bold leading-none">−</span>
+              </button>
+            </div>
+          ))}
+          <button
+            onClick={() => { addDay(); setActiveDayIdx(trip.dailyItineraries.length); setMapDayIdx(null); }}
+            className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm text-action hover:bg-muted transition-colors"
+          >
+            <Plus className="h-4 w-4" /> 新增日期
+          </button>
+        </div>
+
+        {/* 左右分割：左 40% 卡片列表 / 右 60% Google Maps */}
+        {trip.dailyItineraries.length > 0 && (() => {
+          const safeIdx = Math.min(activeDayIdx, trip.dailyItineraries.length - 1);
+          const activeDay = trip.dailyItineraries[safeIdx];
+          const mapActivities =
+            mapDayIdx !== null
+              ? (trip.dailyItineraries[mapDayIdx]?.activities ?? [])
+              : [];
+
+          return (
+            <div className="flex gap-4" style={{ minHeight: '500px' }}>
+              {/* 左側：活動卡片列表 */}
+              <div className="w-[40%] overflow-y-auto space-y-2 pr-1" style={{ maxHeight: '600px', scrollbarWidth: 'thin' }}
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); dragOverActivity.current = { dayIdx: safeIdx, actIdx: activeDay.activities.length }; }}
                 onDrop={(e) => { e.stopPropagation(); handleActivityDrop(e); }}
               >
-                {day.activities.map((act, actIdx) => (
-                  <div
-                    key={act.id}
-                    className="bg-muted/50 rounded-lg p-3 space-y-2 text-sm border-2 border-transparent hover:border-secondary/20 transition-colors"
-                    draggable
-                    onDragStart={(e) => { e.stopPropagation(); handleActivityDragStart(dayIdx, actIdx); }}
-                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); dragOverActivity.current = { dayIdx, actIdx }; }}
-                    onDrop={(e) => { e.stopPropagation(); handleActivityDrop(e); }}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1 cursor-grab active:cursor-grabbing">
-                        <GripVertical className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-xs text-muted-foreground">活動卡片</span>
-                      </div>
-                      <button
-                        onClick={() => deleteActivity(dayIdx, act.id)}
-                        className="w-5 h-5 rounded-full border border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground flex items-center justify-center transition-colors"
-                        title="刪除卡片"
+                {activeDay.activities.map((act, actIdx) => {
+                  const isExpanded = expandedCards.has(act.id);
+                  return (
+                    <div
+                      key={act.id}
+                      className="bg-muted/50 rounded-lg border-2 border-transparent hover:border-secondary/20 transition-colors text-sm"
+                      draggable
+                      onDragStart={(e) => { e.stopPropagation(); handleActivityDragStart(safeIdx, actIdx); }}
+                      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); dragOverActivity.current = { dayIdx: safeIdx, actIdx }; }}
+                      onDrop={(e) => { e.stopPropagation(); handleActivityDrop(e); }}
+                    >
+                      {/* 收合列（永遠顯示） */}
+                      <div
+                        className="flex items-center gap-2 px-2 py-2 cursor-pointer select-none"
+                        onClick={() => toggleCard(act.id, safeIdx)}
                       >
-                        <span className="text-sm font-bold leading-none">−</span>
-                      </button>
+                        <GripVertical className="h-4 w-4 text-muted-foreground shrink-0 cursor-grab active:cursor-grabbing" onClick={(e) => e.stopPropagation()} />
+                        {/* 數字序號，若已有 lat/lng 顯示定位圓點 */}
+                        <span className={`text-xs w-5 shrink-0 text-center font-medium ${act.lat ? 'text-action' : 'text-muted-foreground'}`}>
+                          {actIdx + 1}
+                        </span>
+                        <input
+                          type="time"
+                          value={act.time ?? ''}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => { e.stopPropagation(); updateActivity(safeIdx, act.id, 'time', e.target.value); }}
+                          className="w-20 text-xs border rounded px-1 py-0.5 bg-background text-foreground outline-none shrink-0"
+                        />
+                        <input
+                          value={act.title}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => { e.stopPropagation(); updateActivity(safeIdx, act.id, 'title', e.target.value); }}
+                          placeholder="景點名稱"
+                          className="flex-1 min-w-0 text-sm bg-transparent border-none outline-none text-foreground placeholder:text-muted-foreground"
+                        />
+                        <ChevronDown className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                      </div>
+
+                      {/* 展開內容 */}
+                      {isExpanded && (
+                        <div className="px-3 pb-3 space-y-2 border-t border-border/50">
+                          <select
+                            value={act.type}
+                            onChange={(e) => updateActivity(safeIdx, act.id, 'type', e.target.value)}
+                            className="w-full mt-2 px-2 py-1 rounded border bg-background text-foreground text-sm"
+                          >
+                            <option>景點</option><option>美食</option><option>購物</option><option>交通</option><option>其他</option>
+                          </select>
+
+                          {/* Places Autocomplete（需 API 金鑰；無金鑰時 fallback 純文字輸入） */}
+                          {mapsReady ? (
+                            <PlacesAutocomplete
+                              value={act.address}
+                              onPlaceSelect={(place) => handlePlaceSelect(safeIdx, act.id, place)}
+                              onInputChange={(val) => updateActivity(safeIdx, act.id, 'address', val)}
+                              className="w-full px-2 py-1 rounded border bg-background text-foreground outline-none text-sm"
+                            />
+                          ) : (
+                            <input
+                              value={act.address}
+                              onChange={(e) => updateActivity(safeIdx, act.id, 'address', e.target.value)}
+                              placeholder="Google Map URL 或地址"
+                              className="w-full px-2 py-1 rounded border bg-background text-foreground outline-none text-sm"
+                            />
+                          )}
+
+                          {/* 座標提示 */}
+                          {act.lat && act.lng && (
+                            <p className="text-xs text-muted-foreground">
+                              📍 {act.lat.toFixed(5)}, {act.lng.toFixed(5)}
+                            </p>
+                          )}
+
+                          <textarea
+                            value={act.notes}
+                            onChange={(e) => updateActivity(safeIdx, act.id, 'notes', e.target.value)}
+                            placeholder="備註 (支援HTML)"
+                            rows={2}
+                            className="w-full px-2 py-1 rounded border bg-background text-foreground outline-none text-sm"
+                          />
+                          <button
+                            onClick={() => deleteActivity(safeIdx, act.id)}
+                            className="flex items-center gap-1 text-xs text-destructive hover:text-destructive/80 transition-colors"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" /> 刪除卡片
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <input value={act.title} onChange={(e) => updateActivity(dayIdx, act.id, 'title', e.target.value)} placeholder="標題" className="w-full px-2 py-1 rounded border bg-background text-foreground outline-none text-sm" />
-                    <input value={act.address} onChange={(e) => updateActivity(dayIdx, act.id, 'address', e.target.value)} placeholder="Google Map URL" className="w-full px-2 py-1 rounded border bg-background text-foreground outline-none text-sm" onWheel={(e) => { e.currentTarget.scrollLeft += e.deltaY; e.preventDefault(); }} />
-                    <div>
-                      <input type="file" accept="image/*" onChange={(e) => handleActivityImageUpload(dayIdx, act.id, e)} className="hidden" id={`act-img-${act.id}`} />
-                      <label htmlFor={`act-img-${act.id}`} className="w-full flex items-center gap-1 px-2 py-1 rounded border border-dashed bg-background text-muted-foreground text-sm cursor-pointer hover:border-secondary hover:text-secondary transition-colors">
-                        <Upload className="h-3.5 w-3.5" /> {act.coverImage ? '重新上傳圖片' : '上傳封面圖片'}
-                      </label>
-                      {act.coverImage && <img src={act.coverImage} alt="" className="mt-1 w-full h-20 object-cover rounded" />}
-                    </div>
-                    <select value={act.type} onChange={(e) => updateActivity(dayIdx, act.id, 'type', e.target.value)} className="w-full px-2 py-1 rounded border bg-background text-foreground text-sm">
-                      <option>景點</option><option>美食</option><option>購物</option><option>交通</option><option>其他</option>
-                    </select>
-                    <textarea value={act.notes} onChange={(e) => updateActivity(dayIdx, act.id, 'notes', e.target.value)} placeholder="備註 (支援HTML)" rows={2} className="w-full px-2 py-1 rounded border bg-background text-foreground outline-none text-sm" />
-                  </div>
-                ))}
-                <button onClick={() => addActivity(dayIdx)} className="w-full py-2 rounded-lg border-2 border-dashed border-border text-muted-foreground text-sm hover:border-action hover:text-action transition-colors flex items-center justify-center gap-1">
+                  );
+                })}
+                <button
+                  onClick={() => addActivity(safeIdx)}
+                  className="w-full py-2 rounded-lg border-2 border-dashed border-border text-muted-foreground text-sm hover:border-action hover:text-action transition-colors flex items-center justify-center gap-1"
+                >
                   <Plus className="h-4 w-4" /> 新增卡片
                 </button>
               </div>
+
+              {/* 右側：Google Maps 區 */}
+              <div className="flex-1 rounded-lg overflow-hidden bg-muted" style={{ height: '600px', position: 'sticky', top: '1rem' }}>
+                {mapsReady ? (
+                  <ItineraryMap
+                    activities={mapActivities}
+                    showMarkers={mapDayIdx !== null}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">
+                    <svg className="h-10 w-10 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <p className="text-sm text-center px-4">
+                      {import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+                        ? '地圖載入中...'
+                        : '請在 .env 設定 VITE_GOOGLE_MAPS_API_KEY'}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
-          ))}
-        </div>
+          );
+        })()}
+
+        {trip.dailyItineraries.length === 0 && (
+          <p className="text-sm text-muted-foreground py-4 text-center">尚未新增日期，請點擊「新增日期」開始規劃行程。</p>
+        )}
       </div>
 
       {/* Section 3.5: Todos */}
