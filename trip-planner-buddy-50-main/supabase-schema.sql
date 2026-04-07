@@ -18,6 +18,7 @@ create table if not exists trips (
   luggage_list  jsonb not null default '[]',
   shopping_list jsonb not null default '[]',
   other_notes   text not null default '',
+  weather_cities jsonb not null default '[]',
   created_at    timestamptz not null default now()
 );
 
@@ -28,14 +29,15 @@ create policy "Public read trips"
   on trips for select
   using (true);
 
--- Only authenticated users (admins) can write
+-- Authenticated users (admins) can insert & delete
 create policy "Auth users can insert trips"
   on trips for insert
   with check (auth.role() = 'authenticated');
 
-create policy "Auth users can update trips"
+-- Anyone can update trips (front-end edits: todos, shopping, luggage, etc.)
+create policy "Public update trips"
   on trips for update
-  using (auth.role() = 'authenticated');
+  using (true);
 
 create policy "Auth users can delete trips"
   on trips for delete

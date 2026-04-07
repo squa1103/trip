@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Plus, Plane, Hotel, Luggage, ShoppingCart, Users, Receipt, X, ExternalLink, Check } from 'lucide-react';
+import { ArrowLeft, Plus, Plane, Hotel, Luggage, ShoppingCart, Users, Receipt, X, ExternalLink, Check, Clock, Trash2, Image, ChevronRight } from 'lucide-react';
 import { Trip, ActivityCard as ActivityCardType, TodoItem, LuggageCategory, ShoppingItem } from '@/types/trip';
 import Header from '@/components/Header';
 import ActivityDetailModal from '@/components/trip/ActivityDetailModal';
@@ -9,7 +9,15 @@ import LuggageModal from '@/components/trip/LuggageModal';
 import ShoppingModal from '@/components/trip/ShoppingModal';
 import ManageParticipants from '@/components/trip/ManageParticipants';
 import ExpenseLedgerModal from '@/components/trip/ExpenseLedgerModal';
+import TripWeatherSidebar from '@/components/trip/TripWeatherSidebar';
 import { fetchTripById, updateTrip, updateTripLists } from '@/lib/trips';
+import { toast } from 'sonner';
+import {
+  buildTodoDateTimeFields,
+  formatDateTimeZhTw,
+  NO_REMINDER_MINUTES,
+  remindOffsetOptions,
+} from '@/lib/todoReminders';
 
 const TripDetail = () => {
   const { id } = useParams();
@@ -24,8 +32,16 @@ const TripDetail = () => {
 
   const mutation = useMutation({
     mutationFn: updateTrip,
-    onSuccess: () => {
+    onSuccess: (updatedTrip) => {
+      queryClient.setQueryData<Trip>(['trip', id], (old) =>
+        old
+          ? { ...updatedTrip, shoppingList: old.shoppingList, luggageList: old.luggageList }
+          : updatedTrip
+      );
       queryClient.invalidateQueries({ queryKey: ['trips'] });
+    },
+    onError: (e: Error) => {
+      toast.error(e.message || '儲存失敗，請確認已登入後台帳號');
     },
   });
 
@@ -34,6 +50,10 @@ const TripDetail = () => {
       updateTripLists(id!, luggageList, shoppingList),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trips'] });
+    },
+    onError: (e: Error) => {
+      toast.error(e.message || '清單儲存失敗，請確認已登入後台帳號');
+      queryClient.invalidateQueries({ queryKey: ['trip', id] });
     },
   });
 
@@ -44,7 +64,11 @@ const TripDetail = () => {
   const [ledgerOpen, setLedgerOpen] = useState(false);
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [newTodo, setNewTodo] = useState('');
+  const [newTodoDueAt, setNewTodoDueAt] = useState('');
+  const [newTodoRemindOffsetMinutes, setNewTodoRemindOffsetMinutes] = useState<number>(NO_REMINDER_MINUTES);
   const [showTodoInput, setShowTodoInput] = useState(false);
+  const [isTodoExpanded, setIsTodoExpanded] = useState(() => window.matchMedia('(min-width: 768px)').matches);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -53,6 +77,11 @@ const TripDetail = () => {
       setTodos(trip.todos);
     }
   }, [trip]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -100,12 +129,38 @@ const TripDetail = () => {
     mutation.mutate({ ...trip, todos: next });
   };
 
+  const resetTodoForm = () => {
+    setNewTodo('');
+    setNewTodoDueAt('');
+    setNewTodoRemindOffsetMinutes(NO_REMINDER_MINUTES);
+  };
+
   const addTodo = () => {
     if (!newTodo.trim()) return;
-    const next = [...todos, { id: Date.now().toString(), text: newTodo.trim(), checked: false }];
+    const { dueAt, remindTime, remindOffset } = buildTodoDateTimeFields(
+      newTodoDueAt,
+      newTodoRemindOffsetMinutes
+    );
+    const next = [
+      ...todos,
+      {
+        id: crypto.randomUUID(),
+        text: newTodo.trim(),
+        checked: false,
+        dueAt,
+        remindTime,
+        remindOffset,
+      },
+    ];
     setTodos(next);
-    setNewTodo('');
+    resetTodoForm();
     setShowTodoInput(false);
+    mutation.mutate({ ...trip, todos: next });
+  };
+
+  const removeTodo = (todoId: string) => {
+    const next = todos.filter((t) => t.id !== todoId);
+    setTodos(next);
     mutation.mutate({ ...trip, todos: next });
   };
 
@@ -142,7 +197,16 @@ const TripDetail = () => {
 
       {/* Cover */}
       <div className="relative">
-        <img src={trip.coverImage} alt={trip.title} className="w-full h-64 md:h-96 object-cover" />
+        {trip.coverImage ? (
+          <img src={trip.coverImage} alt={trip.title} className="w-full h-64 md:h-96 object-cover" />
+        ) : (
+          <div
+            className="w-full h-64 md:h-96 bg-muted flex items-center justify-center"
+            aria-hidden
+          >
+            <Image className="h-20 w-20 text-muted-foreground/40" />
+          </div>
+        )}
         <div className="absolute inset-0 bg-hero-overlay" />
         <button
           onClick={() => navigate(-1)}
@@ -156,68 +220,174 @@ const TripDetail = () => {
         </div>
       </div>
 
-      <div className="container mx-auto min-w-0 max-w-full px-4 py-8 space-y-10">
-        {/* 採購清單、記帳器置頂，方便進入頁面即可使用 */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+      <div className="container mx-auto min-w-0 max-w-full px-4 py-8">
+        <div className="min-w-0 space-y-10">
+          <TripWeatherSidebar
+            weatherCities={trip.weatherCities ?? []}
+            onWeatherCitiesChange={(next) => mutation.mutate({ ...trip, weatherCities: next })}
+          />
+
+        {/* 採購清單、記帳器（天氣追蹤下方） */}
+        <div className="grid grid-cols-2 gap-4 sm:gap-6">
           <button
             type="button"
             onClick={() => setShoppingOpen(true)}
-            className="bg-card rounded-xl p-8 shadow-sm hover:shadow-md transition-shadow flex flex-col items-center gap-3 group"
+            className="bg-card rounded-xl p-4 md:p-8 shadow-sm hover:shadow-md transition-shadow flex flex-col items-center gap-2 md:gap-3 group"
           >
-            <ShoppingCart className="h-10 w-10 text-secondary group-hover:scale-110 transition-transform" />
-            <span className="font-medium text-foreground">採購清單</span>
+            <ShoppingCart className="h-7 w-7 md:h-10 md:w-10 text-secondary group-hover:scale-110 transition-transform" />
+            <span className="text-sm md:text-base font-medium text-foreground">採購清單</span>
           </button>
           <button
             type="button"
             onClick={() => setLedgerOpen(true)}
-            className="bg-card rounded-xl p-8 shadow-sm hover:shadow-md transition-shadow flex flex-col items-center gap-3 group"
+            className="bg-card rounded-xl p-4 md:p-8 shadow-sm hover:shadow-md transition-shadow flex flex-col items-center gap-2 md:gap-3 group"
           >
-            <Receipt className="h-10 w-10 text-secondary group-hover:scale-110 transition-transform" />
-            <span className="font-medium text-foreground">記帳器</span>
+            <Receipt className="h-7 w-7 md:h-10 md:w-10 text-secondary group-hover:scale-110 transition-transform" />
+            <span className="text-sm md:text-base font-medium text-foreground">記帳器</span>
           </button>
         </div>
 
         {/* Todos */}
         <div className="bg-card rounded-xl p-6 shadow-sm">
-          <h3 className="font-semibold text-foreground mb-4">待辦事項</h3>
-          <div className="space-y-2">
-            {todos.map((todo) => (
-              <label key={todo.id} className="flex items-center gap-3 cursor-pointer group">
+          <button
+            type="button"
+            onClick={() => setIsTodoExpanded((prev) => !prev)}
+            className="w-full flex items-center justify-between text-left"
+            aria-expanded={isTodoExpanded}
+            aria-label={isTodoExpanded ? '收合待辦事項' : '展開待辦事項'}
+          >
+            <h3 className="font-semibold text-foreground">待辦事項</h3>
+            <ChevronRight
+              className={`h-4 w-4 text-muted-foreground transition-transform ${isTodoExpanded ? 'rotate-90' : ''}`}
+            />
+          </button>
+          {isTodoExpanded && (
+            <div className="space-y-2 mt-4">
+              {todos.map((todo) => (
+                (() => {
+                  const anchorIso = todo.remindTime ?? todo.dueAt ?? null;
+                  const anchorMs = anchorIso ? Date.parse(anchorIso) : NaN;
+                  const isExpired = !todo.checked && Number.isFinite(anchorMs) && anchorMs <= nowMs;
+                  const isSoon =
+                    !todo.checked &&
+                    Number.isFinite(anchorMs) &&
+                    anchorMs > nowMs &&
+                    anchorMs <= nowMs + 60 * 60_000;
+
+                  return (
+                    <div
+                      key={todo.id}
+                      className={`flex items-center gap-3 group rounded-lg p-2 ${isExpired ? 'bg-muted/40' : 'bg-transparent'}`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => toggleTodo(todo.id)}
+                        className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
+                          todo.checked ? 'bg-secondary border-secondary' : 'border-border hover:border-secondary'
+                        }`}
+                        aria-label={todo.checked ? '標為未完成' : '標為完成'}
+                      >
+                        {todo.checked && <Check className="h-3 w-3 text-secondary-foreground" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => toggleTodo(todo.id)}
+                        className="min-w-0 flex-1 text-left flex flex-col cursor-pointer"
+                      >
+                        <span className={`text-sm ${todo.checked ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+                          {todo.text}
+                        </span>
+                        {todo.dueAt && (
+                          <span
+                            className={`text-xs mt-0.5 ${todo.checked ? 'text-muted-foreground/70' : 'text-muted-foreground'} flex items-center gap-1 flex-wrap`}
+                          >
+                            {isSoon && <Clock className="h-3.5 w-3.5 animate-pulse text-amber-500 shrink-0" />}
+                            <span>{formatDateTimeZhTw(todo.dueAt)}</span>
+                          </span>
+                        )}
+                        {todo.remindTime && (
+                          <span className={`text-xs mt-0.5 ${todo.checked ? 'text-muted-foreground/70' : 'text-muted-foreground'} flex items-center gap-1`}>
+                            <span>提醒：{formatDateTimeZhTw(todo.remindTime)}</span>
+                          </span>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removeTodo(todo.id)}
+                        className="shrink-0 p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                        aria-label="刪除待辦"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  );
+                })()
+              ))}
+              {showTodoInput ? (
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mt-2">
+                  <input
+                    autoFocus
+                    value={newTodo}
+                    onChange={(e) => setNewTodo(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && addTodo()}
+                    placeholder="輸入待辦事項..."
+                    className="w-full sm:flex-1 text-sm px-3 py-1.5 rounded-md border bg-background text-foreground outline-none focus:ring-1 focus:ring-ring"
+                  />
+                  <input
+                    type="datetime-local"
+                    value={newTodoDueAt}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setNewTodoDueAt(v);
+                      if (!v) setNewTodoRemindOffsetMinutes(NO_REMINDER_MINUTES);
+                    }}
+                    className="w-full sm:w-auto text-sm px-3 py-1.5 rounded-md border bg-background text-foreground outline-none focus:ring-1 focus:ring-ring"
+                  />
+                  {newTodoDueAt ? (
+                    <select
+                      value={newTodoRemindOffsetMinutes}
+                      onChange={(e) => setNewTodoRemindOffsetMinutes(Number(e.target.value))}
+                      aria-label="提醒時間"
+                      className="w-full sm:w-auto text-sm px-3 py-1.5 rounded-md border bg-background text-foreground outline-none focus:ring-1 focus:ring-ring"
+                    >
+                      {remindOffsetOptions.map((opt) => (
+                        <option key={opt.minutes} value={opt.minutes}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
+                  <button
+                    onClick={addTodo}
+                    className="w-full sm:w-auto px-3 py-1.5 text-sm rounded-md bg-action text-action-foreground hover:bg-action/90"
+                  >
+                    新增
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      resetTodoForm();
+                      setShowTodoInput(false);
+                    }}
+                    className="w-full sm:w-auto text-muted-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
                 <button
-                  onClick={() => toggleTodo(todo.id)}
-                  className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
-                    todo.checked ? 'bg-secondary border-secondary' : 'border-border hover:border-secondary'
-                  }`}
+                  type="button"
+                  onClick={() => {
+                    resetTodoForm();
+                    setShowTodoInput(true);
+                  }}
+                  className="flex items-center gap-1 text-sm text-muted-foreground/60 hover:text-secondary transition-colors mt-2"
                 >
-                  {todo.checked && <Check className="h-3 w-3 text-secondary-foreground" />}
+                  <Plus className="h-4 w-4" /> 新增待辦事項
                 </button>
-                <span className={`text-sm ${todo.checked ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-                  {todo.text}
-                </span>
-              </label>
-            ))}
-            {showTodoInput ? (
-              <div className="flex items-center gap-2 mt-2">
-                <input
-                  autoFocus
-                  value={newTodo}
-                  onChange={(e) => setNewTodo(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && addTodo()}
-                  placeholder="輸入待辦事項..."
-                  className="flex-1 text-sm px-3 py-1.5 rounded-md border bg-background text-foreground outline-none focus:ring-1 focus:ring-ring"
-                />
-                <button onClick={addTodo} className="px-3 py-1.5 text-sm rounded-md bg-action text-action-foreground hover:bg-action/90">新增</button>
-                <button onClick={() => setShowTodoInput(false)} className="text-muted-foreground"><X className="h-4 w-4" /></button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setShowTodoInput(true)}
-                className="flex items-center gap-1 text-sm text-muted-foreground/60 hover:text-secondary transition-colors mt-2"
-              >
-                <Plus className="h-4 w-4" /> 新增待辦事項
-              </button>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Flights & Hotels */}
@@ -348,6 +518,7 @@ const TripDetail = () => {
             <div className="rich-html text-sm text-table-foreground" dangerouslySetInnerHTML={{ __html: trip.otherNotes }} />
           </div>
         )}
+        </div>
       </div>
 
       {/* Modals */}

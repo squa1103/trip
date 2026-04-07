@@ -17,6 +17,8 @@ export interface TripRow {
   luggage_list: Trip['luggageList'];
   shopping_list: Trip['shoppingList'];
   other_notes: string;
+  /** 舊 DB 尚未 migration 時可能缺此欄 */
+  weather_cities?: Trip['weatherCities'];
   created_at?: string;
 }
 
@@ -39,6 +41,7 @@ export function rowToTrip(row: TripRow): Trip {
     luggageList: row.luggage_list ?? [],
     shoppingList: row.shopping_list ?? [],
     otherNotes: row.other_notes ?? '',
+    weatherCities: row.weather_cities ?? [],
   };
 }
 
@@ -58,6 +61,7 @@ export function tripToRow(trip: Trip): Omit<TripRow, 'created_at'> {
     luggage_list: trip.luggageList,
     shopping_list: trip.shoppingList,
     other_notes: trip.otherNotes,
+    weather_cities: trip.weatherCities,
   };
 }
 
@@ -84,10 +88,10 @@ export async function fetchTripById(id: string): Promise<Trip | null> {
 }
 
 export async function createTrip(trip: Trip): Promise<Trip> {
-  const row = tripToRow(trip);
+  const { id: _clientId, ...insertRow } = tripToRow(trip);
   const { data, error } = await supabase
     .from('trips')
-    .insert(row)
+    .insert(insertRow)
     .select()
     .single();
   if (error) throw error;
@@ -114,7 +118,9 @@ export async function updateTripLists(
   const { error } = await supabase
     .from('trips')
     .update({ luggage_list: luggageList, shopping_list: shoppingList })
-    .eq('id', id);
+    .eq('id', id)
+    .select('id')
+    .single();
   if (error) throw error;
 }
 

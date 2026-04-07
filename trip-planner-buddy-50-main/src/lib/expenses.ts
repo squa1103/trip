@@ -217,17 +217,34 @@ export async function getExpensesByTripId(tripId: string): Promise<ExpenseWithSp
  * 刪除成員前必查：是否為任一筆花費的付款人 (payer_id) 或分攤列 (expense_splits.participant_id)。
  * DB 上 expense_splits 對 trip_participants 為 ON DELETE CASCADE，若未攔截會刪掉分攤列但主檔總額不變，造成帳不平；
  * 因此前端須一律先通過此檢查再呼叫 deleteTripParticipant；payer 則另受 DB RESTRICT 保護。
+ *
+ * 僅以 `select id` + `limit(1)` 在 DB 做存在檢查，避免拉整趟行程花費與巢狀關聯。
  */
 export async function isTripParticipantInvolvedInLedger(
   tripId: string,
   participantId: string,
 ): Promise<boolean> {
-  const expenses = await getExpensesByTripId(tripId);
-  return expenses.some(
-    (e) =>
-      e.payerId === participantId ||
-      e.splits.some((s) => s.participantId === participantId),
-  );
+  const { data: asPayer, error: payerErr } = await supabase
+    .from('expenses')
+    .select('id')
+    .eq('trip_id', tripId)
+    .eq('payer_id', participantId)
+    .limit(1)
+    .maybeSingle();
+
+  if (payerErr) throw payerErr;
+  if (asPayer) return true;
+
+  const { data: asSplit, error: splitErr } = await supabase
+    .from('expense_splits')
+    .select('id, expenses!inner(trip_id)')
+    .eq('participant_id', participantId)
+    .eq('expenses.trip_id', tripId)
+    .limit(1)
+    .maybeSingle();
+
+  if (splitErr) throw splitErr;
+  return asSplit != null;
 }
 
 async function getExpenseWithSplitsById(expenseId: string): Promise<ExpenseWithSplits | null> {
@@ -242,7 +259,9 @@ async function getExpenseWithSplitsById(expenseId: string): Promise<ExpenseWithS
 }
 
 /**
- * 單一流程：先插入 expenses，再批次插入 expense_splits；若明細失敗則刪除已建立的主檔。
+ * 透過 DB RPC `create_expense_with_splits` 在同一個 Postgres transaction 內寫入
+ * expenses 與 expense_splits，避免「主檔已寫入但分攤失敗且手動刪除也失敗」的孤兒列。
+ * （須在 Supabase 執行 supabase-rpc-create-expense-with-splits.sql）
  */
 export async function createExpense(
   expenseData: CreateExpensePayload,
@@ -252,26 +271,25 @@ export async function createExpense(
 
   const insertRow = createExpensePayloadToInsertRow(expenseData);
 
-  const { data: inserted, error: insertErr } = await supabase
-    .from('expenses')
-    .insert(insertRow)
-    .select('id')
-    .single();
+  const p_splits = splitsData.map((s) => ({
+    participant_id: s.participantId,
+    owed_amount: s.owedAmount,
+  }));
 
-  if (insertErr) throw insertErr;
-  const expenseId = inserted.id as string;
+  const { data: expenseId, error } = await supabase.rpc('create_expense_with_splits', {
+    p_trip_id: insertRow.trip_id,
+    p_title: insertRow.title,
+    p_amount_total: insertRow.amount_total,
+    p_currency: insertRow.currency,
+    p_exchange_rate: insertRow.exchange_rate,
+    p_payer_id: insertRow.payer_id,
+    p_expense_date: insertRow.expense_date,
+    p_splits,
+  });
 
-  if (splitsData.length > 0) {
-    const splitRows = splitsData.map((s) => ({
-      expense_id: expenseId,
-      participant_id: s.participantId,
-      owed_amount: s.owedAmount,
-    }));
-    const { error: splitsErr } = await supabase.from('expense_splits').insert(splitRows);
-    if (splitsErr) {
-      await supabase.from('expenses').delete().eq('id', expenseId);
-      throw splitsErr;
-    }
+  if (error) throw error;
+  if (typeof expenseId !== 'string' || !expenseId) {
+    throw new Error('建立花費後未取得有效 id');
   }
 
   const full = await getExpenseWithSplitsById(expenseId);

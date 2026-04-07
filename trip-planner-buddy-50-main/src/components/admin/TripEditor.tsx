@@ -1,11 +1,18 @@
 import { useState, useRef, useEffect, DragEvent } from 'react';
-import { ArrowLeft, Plus, Trash2, Upload, GripVertical, Users, Luggage, ShoppingCart } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Upload, GripVertical, Users, Luggage, ShoppingCart, Check, X, Clock } from 'lucide-react';
 import { Trip, DailyItinerary, ActivityCard, HotelInfo, LuggageCategory, ShoppingItem } from '@/types/trip';
 import LuggageModal from '@/components/trip/LuggageModal';
 import ShoppingModal from '@/components/trip/ShoppingModal';
 import TripExpensesPanel from '@/components/admin/TripExpensesPanel';
 import ManageParticipants from '@/components/trip/ManageParticipants';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { addDays, format, parseISO } from 'date-fns';
+import {
+  buildTodoDateTimeFields,
+  formatDateTimeZhTw,
+  NO_REMINDER_MINUTES,
+  remindOffsetOptions,
+} from '@/lib/todoReminders';
 
 interface Props {
   trip: Trip;
@@ -23,16 +30,30 @@ const fileToDataUrl = (file: File): Promise<string> =>
     reader.readAsDataURL(file);
   });
 
+/** YYYY-MM-DD 純日曆加減：`parseISO` 對僅日期字串以本地日曆解析，搭配 `addDays`/`format` 避免原生 `Date` 與 `toISOString()` 混用。 */
+const addCalendarDaysIso = (isoDate: string, days: number): string =>
+  format(addDays(parseISO(isoDate.split('T')[0]), days), 'yyyy-MM-dd');
+
 const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTrip = false }: Props) => {
   const [trip, setTrip] = useState<Trip>({ ...initial });
   const coverInputRef = useRef<HTMLInputElement>(null);
   const [luggageOpen, setLuggageOpen] = useState(false);
   const [shoppingOpen, setShoppingOpen] = useState(false);
   const [participantsOpen, setParticipantsOpen] = useState(false);
+  const [showTodoInput, setShowTodoInput] = useState(false);
+  const [newTodo, setNewTodo] = useState('');
+  const [newTodoDueAt, setNewTodoDueAt] = useState('');
+  const [newTodoRemindOffsetMinutes, setNewTodoRemindOffsetMinutes] = useState<number>(NO_REMINDER_MINUTES);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
     setTrip((prev) => ({ ...prev, luggageList: initial.luggageList, shoppingList: initial.shoppingList }));
   }, [initial.luggageList, initial.shoppingList]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
   // Drag state for activities
   const dragActivity = useRef<{ dayIdx: number; actIdx: number } | null>(null);
   const dragOverActivity = useRef<{ dayIdx: number; actIdx: number } | null>(null);
@@ -93,6 +114,47 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
     setTrip((prev) => ({ ...prev, [key]: value }));
   };
 
+  const toggleTodo = (todoId: string) => {
+    const next = trip.todos.map((t) => (t.id === todoId ? { ...t, checked: !t.checked } : t));
+    update('todos', next);
+  };
+
+  const resetTodoForm = () => {
+    setNewTodo('');
+    setNewTodoDueAt('');
+    setNewTodoRemindOffsetMinutes(NO_REMINDER_MINUTES);
+  };
+
+  const addTodo = () => {
+    if (!newTodo.trim()) return;
+    const { dueAt, remindTime, remindOffset } = buildTodoDateTimeFields(
+      newTodoDueAt,
+      newTodoRemindOffsetMinutes
+    );
+
+    const next = [
+      ...trip.todos,
+      {
+        id: crypto.randomUUID(),
+        text: newTodo.trim(),
+        checked: false,
+        dueAt,
+        remindTime,
+        remindOffset,
+      },
+    ];
+    update('todos', next);
+    resetTodoForm();
+    setShowTodoInput(false);
+  };
+
+  const removeTodo = (todoId: string) => {
+    update(
+      'todos',
+      trip.todos.filter((t) => t.id !== todoId)
+    );
+  };
+
   const updateFlight = (direction: 'departure' | 'return', field: string, value: string | number) => {
     setTrip((prev) => ({
       ...prev,
@@ -101,7 +163,7 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
   };
 
   const addHotel = () => {
-    const newHotel: HotelInfo = { id: Date.now().toString(), name: '', checkIn: '', checkOut: '', address: '', confirmationNumber: '' };
+    const newHotel: HotelInfo = { id: crypto.randomUUID(), name: '', checkIn: '', checkOut: '', address: '', confirmationNumber: '' };
     update('hotels', [...trip.hotels, newHotel]);
   };
 
@@ -110,12 +172,13 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
   };
 
   const addDay = () => {
-    const lastDate = trip.dailyItineraries.length > 0
-      ? new Date(trip.dailyItineraries[trip.dailyItineraries.length - 1].date)
-      : trip.startDate ? new Date(trip.startDate) : new Date();
-    const nextDate = new Date(lastDate);
-    nextDate.setDate(nextDate.getDate() + 1);
-    const dateStr = nextDate.toISOString().split('T')[0];
+    const lastYmd =
+      trip.dailyItineraries.length > 0
+        ? trip.dailyItineraries[trip.dailyItineraries.length - 1].date.split('T')[0]
+        : trip.startDate
+          ? trip.startDate.split('T')[0]
+          : format(new Date(), 'yyyy-MM-dd');
+    const dateStr = addCalendarDaysIso(lastYmd, 1);
     update('dailyItineraries', [...trip.dailyItineraries, { date: dateStr, activities: [] }]);
   };
 
@@ -127,7 +190,7 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
 
   const addActivity = (dayIndex: number) => {
     const newActivity: ActivityCard = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       coverImage: '',
       title: '',
       type: '景點',
@@ -401,6 +464,146 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
               </div>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Section 3.5: Todos */}
+      <div className="bg-card rounded-xl p-6 shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-foreground">待辦事項</h3>
+          {showTodoInput ? null : (
+            <button
+              type="button"
+              onClick={() => {
+                resetTodoForm();
+                setShowTodoInput(true);
+              }}
+              className="flex items-center gap-1 text-sm text-action hover:text-action/80"
+            >
+              <Plus className="h-4 w-4" /> 新增待辦
+            </button>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          {trip.todos.length === 0 && (
+            <p className="text-sm text-muted-foreground">尚未新增待辦事項</p>
+          )}
+
+          {trip.todos.map((todo) => (
+            (() => {
+              const anchorIso = todo.remindTime ?? todo.dueAt ?? null;
+              const anchorMs = anchorIso ? Date.parse(anchorIso) : NaN;
+              const isExpired = !todo.checked && Number.isFinite(anchorMs) && anchorMs <= nowMs;
+              const isSoon =
+                !todo.checked &&
+                Number.isFinite(anchorMs) &&
+                anchorMs > nowMs &&
+                anchorMs <= nowMs + 60 * 60_000;
+
+              return (
+                <div key={todo.id} className={`flex items-start gap-3 rounded-lg p-2 ${isExpired ? 'bg-muted/40' : 'bg-transparent'}`}>
+              <button
+                type="button"
+                onClick={() => toggleTodo(todo.id)}
+                className={`w-5 h-5 mt-0.5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
+                  todo.checked ? 'bg-secondary border-secondary' : 'border-border hover:border-secondary'
+                }`}
+              >
+                {todo.checked && <Check className="h-3 w-3 text-secondary-foreground" />}
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleTodo(todo.id)}
+                className="min-w-0 flex-1 text-left"
+              >
+                <div className={`text-sm ${todo.checked ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+                  {todo.text}
+                </div>
+                {todo.dueAt && (
+                  <div
+                    className={`text-xs mt-1 ${todo.checked ? 'text-muted-foreground/70' : 'text-muted-foreground'} flex items-center gap-1 flex-wrap`}
+                  >
+                    {isSoon && <Clock className="h-3.5 w-3.5 animate-pulse text-amber-500 shrink-0" />}
+                    <span>{formatDateTimeZhTw(todo.dueAt)}</span>
+                  </div>
+                )}
+                {todo.remindTime && (
+                  <div className={`text-xs mt-1 ${todo.checked ? 'text-muted-foreground/70' : 'text-muted-foreground'} flex items-center gap-1`}>
+                    <span>提醒：{formatDateTimeZhTw(todo.remindTime)}</span>
+                  </div>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => removeTodo(todo.id)}
+                className="shrink-0 p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors mt-0.5"
+                aria-label="刪除待辦"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+                </div>
+              );
+            })()
+          ))}
+
+          {showTodoInput && (
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-2">
+              <input
+                autoFocus
+                value={newTodo}
+                onChange={(e) => setNewTodo(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addTodo()}
+                placeholder="輸入待辦事項..."
+                className="w-full sm:flex-1 min-w-[160px] text-sm px-3 py-1.5 rounded-md border bg-background text-foreground outline-none focus:ring-1 focus:ring-ring"
+              />
+
+              <input
+                type="datetime-local"
+                value={newTodoDueAt}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setNewTodoDueAt(v);
+                  if (!v) setNewTodoRemindOffsetMinutes(NO_REMINDER_MINUTES);
+                }}
+                className="w-full sm:w-auto text-sm px-3 py-1.5 rounded-md border bg-background text-foreground outline-none focus:ring-1 focus:ring-ring"
+              />
+
+              {newTodoDueAt ? (
+                <select
+                  value={newTodoRemindOffsetMinutes}
+                  onChange={(e) => setNewTodoRemindOffsetMinutes(Number(e.target.value))}
+                  aria-label="提醒時間"
+                  className="w-full sm:w-auto text-sm px-3 py-1.5 rounded-md border bg-background text-foreground outline-none focus:ring-1 focus:ring-ring"
+                >
+                  {remindOffsetOptions.map((opt) => (
+                    <option key={opt.minutes} value={opt.minutes}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+
+              <button
+                type="button"
+                onClick={addTodo}
+                className="w-full sm:w-auto px-3 py-1.5 text-sm rounded-md bg-action text-action-foreground hover:bg-action/90"
+              >
+                新增
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  resetTodoForm();
+                  setShowTodoInput(false);
+                }}
+                className="w-full sm:w-auto text-muted-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

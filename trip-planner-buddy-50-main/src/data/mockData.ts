@@ -59,6 +59,7 @@ export const mockTrips: Trip[] = [
       { id: 's2', status: 'complete', name: '抹茶零食', location: '東京車站', price: 1500 },
     ],
     otherNotes: '',
+    weatherCities: [],
   },
   {
     id: '2',
@@ -77,6 +78,7 @@ export const mockTrips: Trip[] = [
     luggageList: [],
     shoppingList: [],
     otherNotes: '',
+    weatherCities: [],
   },
   {
     id: '3',
@@ -93,6 +95,7 @@ export const mockTrips: Trip[] = [
     luggageList: [],
     shoppingList: [],
     otherNotes: '',
+    weatherCities: [],
   },
   {
     id: '4',
@@ -109,6 +112,7 @@ export const mockTrips: Trip[] = [
     luggageList: [],
     shoppingList: [],
     otherNotes: '',
+    weatherCities: [],
   },
 ];
 

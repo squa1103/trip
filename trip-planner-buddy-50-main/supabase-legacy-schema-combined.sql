@@ -1,14 +1,60 @@
 -- =============================================================================
--- Trip participants, expenses, expense_splits (LightSplit-style)
--- Run in Supabase SQL Editor after `trips` exists (see supabase-schema.sql).
---
--- Notes:
--- - expenses.payer_id -> trip_participants ON DELETE RESTRICT：刪除「仍為某筆花費付款人」的
---   成員會被擋下；刪除整個行程時，會先 CASCADE 刪除 expenses，再刪 participants（由資料庫排序）。
+-- Legacy combined schema for new database bootstrap
+-- Excludes today's additions:
+-- - notifications table / policies
+-- - todo_reminders table / pg_cron reminder flow
 -- =============================================================================
 
+-- Optional (Supabase usually already has pgcrypto)
+-- create extension if not exists pgcrypto;
+
 -- -----------------------------------------------------------------------------
--- 1. trip_participants
+-- A) Core trips table
+-- -----------------------------------------------------------------------------
+create table if not exists public.trips (
+  id                uuid primary key default gen_random_uuid(),
+  title             text not null default '',
+  cover_image       text not null default '',
+  start_date        text not null default '',
+  end_date          text not null default '',
+  category          text not null default 'domestic' check (category in ('domestic', 'international')),
+  status            text not null default 'planning' check (status in ('planning', 'ongoing', 'completed')),
+  todos             jsonb not null default '[]',
+  flights           jsonb not null default '{"departure":{},"return":{}}',
+  hotels            jsonb not null default '[]',
+  daily_itineraries jsonb not null default '[]',
+  luggage_list      jsonb not null default '[]',
+  shopping_list     jsonb not null default '[]',
+  other_notes       text not null default '',
+  weather_cities    jsonb not null default '[]',
+  created_at        timestamptz not null default now()
+);
+
+alter table public.trips enable row level security;
+
+drop policy if exists "Public read trips" on public.trips;
+drop policy if exists "Auth users can insert trips" on public.trips;
+drop policy if exists "Auth users can update trips" on public.trips;
+drop policy if exists "Auth users can delete trips" on public.trips;
+
+create policy "Public read trips"
+  on public.trips for select
+  using (true);
+
+create policy "Auth users can insert trips"
+  on public.trips for insert
+  with check (auth.role() = 'authenticated');
+
+create policy "Public update trips"
+  on public.trips for update
+  using (true);
+
+create policy "Auth users can delete trips"
+  on public.trips for delete
+  using (auth.role() = 'authenticated');
+
+-- -----------------------------------------------------------------------------
+-- B) Expense split tables
 -- -----------------------------------------------------------------------------
 create table if not exists public.trip_participants (
   id            uuid primary key default gen_random_uuid(),
@@ -22,9 +68,6 @@ create table if not exists public.trip_participants (
 create index if not exists trip_participants_trip_id_idx
   on public.trip_participants (trip_id);
 
--- -----------------------------------------------------------------------------
--- 2. expenses
--- -----------------------------------------------------------------------------
 create table if not exists public.expenses (
   id              uuid primary key default gen_random_uuid(),
   trip_id         uuid not null references public.trips (id) on delete cascade,
@@ -47,7 +90,6 @@ create index if not exists expenses_trip_id_idx
 create index if not exists expenses_trip_id_expense_date_desc_idx
   on public.expenses (trip_id, expense_date desc);
 
--- Keep updated_at in sync (pattern compatible with Supabase)
 create or replace function public.set_expenses_updated_at()
 returns trigger
 language plpgsql
@@ -66,11 +108,6 @@ create trigger expenses_set_updated_at
   for each row
   execute procedure public.set_expenses_updated_at();
 
--- -----------------------------------------------------------------------------
--- 3. expense_splits
--- 注意：participant_id 使用 ON DELETE CASCADE，若直接刪成員會一併刪分攤列但 expenses.amount_total
--- 不變，應用層須禁止刪除仍參與記帳的成員（見 isTripParticipantInvolvedInLedger）。
--- -----------------------------------------------------------------------------
 create table if not exists public.expense_splits (
   id              uuid primary key default gen_random_uuid(),
   expense_id      uuid not null references public.expenses (id) on delete cascade,
@@ -86,14 +123,10 @@ create index if not exists expense_splits_expense_id_idx
 create index if not exists expense_splits_participant_id_idx
   on public.expense_splits (participant_id);
 
--- -----------------------------------------------------------------------------
--- 4. Row Level Security (align with public.trips: anyone read, auth write)
--- -----------------------------------------------------------------------------
 alter table public.trip_participants enable row level security;
 alter table public.expenses enable row level security;
 alter table public.expense_splits enable row level security;
 
--- trip_participants
 drop policy if exists "Public read trip_participants" on public.trip_participants;
 drop policy if exists "Auth users can insert trip_participants" on public.trip_participants;
 drop policy if exists "Auth users can update trip_participants" on public.trip_participants;
@@ -117,7 +150,6 @@ create policy "Public delete trip_participants"
   on public.trip_participants for delete
   using (true);
 
--- expenses
 drop policy if exists "Public read expenses" on public.expenses;
 drop policy if exists "Auth users can insert expenses" on public.expenses;
 drop policy if exists "Auth users can update expenses" on public.expenses;
@@ -141,7 +173,6 @@ create policy "Public delete expenses"
   on public.expenses for delete
   using (true);
 
--- expense_splits
 drop policy if exists "Public read expense_splits" on public.expense_splits;
 drop policy if exists "Auth users can insert expense_splits" on public.expense_splits;
 drop policy if exists "Auth users can update expense_splits" on public.expense_splits;
@@ -164,3 +195,33 @@ create policy "Auth users can update expense_splits"
 create policy "Public delete expense_splits"
   on public.expense_splits for delete
   using (true);
+
+-- -----------------------------------------------------------------------------
+-- C) Storage policies (bucket: homepage-media)
+-- -----------------------------------------------------------------------------
+-- Ensure bucket exists first in Supabase Storage:
+-- name: homepage-media, public: true
+
+drop policy if exists "Public read homepage-media" on storage.objects;
+drop policy if exists "Auth insert homepage-media" on storage.objects;
+drop policy if exists "Auth update homepage-media" on storage.objects;
+drop policy if exists "Auth delete homepage-media" on storage.objects;
+
+create policy "Public read homepage-media"
+  on storage.objects for select
+  using (bucket_id = 'homepage-media');
+
+create policy "Auth insert homepage-media"
+  on storage.objects for insert
+  to authenticated
+  with check (bucket_id = 'homepage-media');
+
+create policy "Auth update homepage-media"
+  on storage.objects for update
+  to authenticated
+  using (bucket_id = 'homepage-media');
+
+create policy "Auth delete homepage-media"
+  on storage.objects for delete
+  to authenticated
+  using (bucket_id = 'homepage-media');
