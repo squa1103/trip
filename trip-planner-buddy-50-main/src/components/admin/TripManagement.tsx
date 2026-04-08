@@ -3,7 +3,7 @@ import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Trip } from '@/types/trip';
 import TripEditor from '@/components/admin/TripEditor';
-import { fetchTrips, createTrip, updateTrip, deleteTrip } from '@/lib/trips';
+import { fetchTrips, fetchTripById, createTrip, updateTrip, deleteTrip } from '@/lib/trips';
 
 const emptyTrip = (): Trip => ({
   id: crypto.randomUUID(),
@@ -30,6 +30,8 @@ const TripManagement = () => {
   const queryClient = useQueryClient();
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  /** ID of the trip being loaded for editing (shows spinner on its row). */
+  const [loadingEditId, setLoadingEditId] = useState<string | null>(null);
 
   const { data: trips = [], isLoading } = useQuery({
     queryKey: ['trips'],
@@ -67,6 +69,24 @@ const TripManagement = () => {
   const handleNew = () => {
     setEditingTrip(emptyTrip());
     setIsCreating(true);
+  };
+
+  /**
+   * Fetch full trip data (including daily_itineraries etc.) before opening
+   * the editor. The list query intentionally omits those large columns to
+   * prevent OOM when many base64 images are stored as receipts/covers.
+   */
+  const handleEdit = async (tripId: string) => {
+    setLoadingEditId(tripId);
+    try {
+      const full = await fetchTripById(tripId);
+      if (full) {
+        setEditingTrip(full);
+        setIsCreating(false);
+      }
+    } finally {
+      setLoadingEditId(null);
+    }
   };
 
   const handleSave = async (trip: Trip) => {
@@ -149,10 +169,15 @@ const TripManagement = () => {
                   </td>
                   <td className="px-4 py-3 text-right space-x-2">
                     <button
-                      onClick={() => { setEditingTrip(trip); setIsCreating(false); }}
-                      className="text-secondary hover:text-secondary/80"
+                      onClick={() => handleEdit(trip.id)}
+                      disabled={loadingEditId === trip.id}
+                      className="text-secondary hover:text-secondary/80 disabled:opacity-50"
                     >
-                      <Pencil className="h-4 w-4 inline" />
+                      {loadingEditId === trip.id ? (
+                        <span className="h-4 w-4 inline-block rounded-full border-2 border-secondary/30 border-t-secondary animate-spin" />
+                      ) : (
+                        <Pencil className="h-4 w-4 inline" />
+                      )}
                     </button>
                     <button
                       onClick={() => handleDelete(trip.id)}

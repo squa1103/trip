@@ -15,25 +15,26 @@ interface Props {
 }
 
 /**
- * Custom Places Autocomplete built on AutocompleteSuggestion (Places API New).
+ * Places Autocomplete using the classic google.maps.places API.
  *
- * Unlike `PlaceAutocompleteElement`, this component owns its own <input> and
- * dropdown, so styling is 100% under our control with plain Tailwind classes.
+ * Uses AutocompleteService (predictions) + PlacesService (details) which are
+ * available via traditional script-tag loading with ?libraries=places.
+ * No importLibrary() calls — consistent with the rest of the app.
  *
  * Flow:
- *  1. User types → debounced fetchAutocompleteSuggestions()
- *  2. Dropdown renders suggestions
- *  3. User clicks a suggestion → place.fetchFields() → onPlaceSelect()
- *  4. Session token is refreshed after each completed selection (billing best-practice)
+ *  1. User types → debounced AutocompleteService.getPlacePredictions()
+ *  2. Dropdown renders predictions
+ *  3. User clicks → PlacesService.getDetails() → onPlaceSelect()
+ *  4. Session token refreshed after each completed selection (billing best-practice)
  */
 const PlacesAutocomplete = ({ initialValue, onPlaceSelect, className }: Props) => {
   const [inputValue, setInputValue]   = useState(initialValue ?? '');
-  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [suggestions, setSuggestions] = useState<google.maps.places.AutocompletePrediction[]>([]);
   const [isOpen, setIsOpen]           = useState(false);
   const [loading, setLoading]         = useState(false);
 
   const debounceRef      = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const sessionTokenRef  = useRef<any>(null);
+  const sessionTokenRef  = useRef<google.maps.places.AutocompleteSessionToken | null>(null);
   const containerRef     = useRef<HTMLDivElement>(null);
   const onPlaceSelectRef = useRef(onPlaceSelect);
   useEffect(() => { onPlaceSelectRef.current = onPlaceSelect; });
@@ -45,34 +46,39 @@ const PlacesAutocomplete = ({ initialValue, onPlaceSelect, className }: Props) =
     };
   }, []);
 
-  // ── Initialise session token ──────────────────────────────────────────────
+  // ── Initialise session token (once, after Maps loads) ────────────────────
   useEffect(() => {
-    (async () => {
-      const lib = await google.maps.importLibrary('places') as any;
-      sessionTokenRef.current = lib.AutocompleteSessionToken
-        ? new lib.AutocompleteSessionToken()
-        : null;
-    })();
+    if (typeof google !== 'undefined' && google.maps?.places?.AutocompleteSessionToken) {
+      sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
+    }
   }, []);
 
   // ── Fetch suggestions (debounced 300 ms) ──────────────────────────────────
-  const fetchSuggestions = useCallback(async (query: string) => {
+  const fetchSuggestions = useCallback((query: string) => {
     if (query.trim().length < 2) { setSuggestions([]); setIsOpen(false); return; }
 
     setLoading(true);
     try {
-      const lib = await google.maps.importLibrary('places') as any;
-      const { suggestions: results } =
-        await lib.AutocompleteSuggestion.fetchAutocompleteSuggestions({
+      const service = new google.maps.places.AutocompleteService();
+      service.getPlacePredictions(
+        {
           input: query,
           ...(sessionTokenRef.current ? { sessionToken: sessionTokenRef.current } : {}),
-        });
-      setSuggestions(results ?? []);
-      setIsOpen((results ?? []).length > 0);
+        },
+        (predictions, status) => {
+          if (status === google.maps.places.PlacesServiceStatus.OK && predictions) {
+            setSuggestions(predictions);
+            setIsOpen(predictions.length > 0);
+          } else {
+            setSuggestions([]);
+            setIsOpen(false);
+          }
+          setLoading(false);
+        },
+      );
     } catch {
       setSuggestions([]);
       setIsOpen(false);
-    } finally {
       setLoading(false);
     }
   }, []);
@@ -85,30 +91,37 @@ const PlacesAutocomplete = ({ initialValue, onPlaceSelect, className }: Props) =
   };
 
   // ── Handle suggestion selection ───────────────────────────────────────────
-  const handleSelect = async (suggestion: any) => {
+  const handleSelect = (prediction: google.maps.places.AutocompletePrediction) => {
     setIsOpen(false);
     setSuggestions([]);
 
-    const place = suggestion.placePrediction.toPlace();
-    await place.fetchFields({
-      fields: ['id', 'formattedAddress', 'location', 'displayName'],
-    });
-
-    const address = place.formattedAddress ?? (place.displayName as any)?.text ?? '';
-    setInputValue(address);
-
     // Renew session token for next search (billing best-practice)
-    const lib = await google.maps.importLibrary('places') as any;
-    if (lib.AutocompleteSessionToken) {
-      sessionTokenRef.current = new lib.AutocompleteSessionToken();
+    if (typeof google !== 'undefined' && google.maps?.places?.AutocompleteSessionToken) {
+      sessionTokenRef.current = new google.maps.places.AutocompleteSessionToken();
     }
 
-    onPlaceSelectRef.current({
-      placeId: place.id ?? '',
-      address,
-      lat: place.location?.lat() ?? 0,
-      lng: place.location?.lng() ?? 0,
-    });
+    // PlacesService requires a DOM element or Map instance
+    const detailDiv = document.createElement('div');
+    const placesService = new google.maps.places.PlacesService(detailDiv);
+
+    placesService.getDetails(
+      {
+        placeId: prediction.place_id,
+        fields: ['place_id', 'formatted_address', 'geometry', 'name'],
+      },
+      (place, status) => {
+        if (status === google.maps.places.PlacesServiceStatus.OK && place) {
+          const address = place.formatted_address ?? place.name ?? '';
+          setInputValue(address);
+          onPlaceSelectRef.current({
+            placeId: place.place_id ?? '',
+            address,
+            lat: place.geometry?.location?.lat() ?? 0,
+            lng: place.geometry?.location?.lng() ?? 0,
+          });
+        }
+      },
+    );
   };
 
   // ── Close dropdown on outside click ──────────────────────────────────────
@@ -148,14 +161,13 @@ const PlacesAutocomplete = ({ initialValue, onPlaceSelect, className }: Props) =
       {/* Suggestions dropdown */}
       {isOpen && suggestions.length > 0 && (
         <ul className="absolute z-50 w-full mt-1 bg-white rounded-lg border border-[#E5DDD5] shadow-lg overflow-hidden py-1">
-          {suggestions.map((s: any, i: number) => {
-            const pred      = s.placePrediction;
-            const main      = pred?.mainText?.text      ?? pred?.text?.text ?? '';
-            const secondary = pred?.secondaryText?.text ?? '';
+          {suggestions.map((pred, i) => {
+            const main      = pred.structured_formatting?.main_text      ?? pred.description ?? '';
+            const secondary = pred.structured_formatting?.secondary_text ?? '';
             return (
               <li
                 key={i}
-                onMouseDown={() => handleSelect(s)}
+                onMouseDown={() => handleSelect(pred)}
                 className="px-3 py-2 cursor-pointer hover:bg-[#F7F3F0] transition-colors"
               >
                 <span className="block text-sm font-medium text-[#1F2937] leading-tight">

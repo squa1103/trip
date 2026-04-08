@@ -65,10 +65,16 @@ export function tripToRow(trip: Trip): Omit<TripRow, 'created_at'> {
   };
 }
 
+/**
+ * Lightweight list query — intentionally excludes large JSONB columns
+ * (daily_itineraries, todos, flights, hotels, weather_cities, other_notes)
+ * to prevent OOM when trips contain embedded base64 receipt/activity images.
+ * Full data is fetched on-demand via fetchTripById() when opening the editor.
+ */
 export async function fetchTrips(): Promise<Trip[]> {
   const { data, error } = await supabase
     .from('trips')
-    .select('*')
+    .select('id,title,cover_image,start_date,end_date,category,status,luggage_list,shopping_list,created_at')
     .order('start_date', { ascending: false });
   if (error) throw error;
   return (data as TripRow[]).map(rowToTrip);

@@ -207,169 +207,15 @@ const ItineraryMapInner = forwardRef<MapHandle, Props>(
     }), [activities]);
 
     // ── Main effect: init → clear → draw markers + route ────────────────
+    //
+    // All google.maps.* classes are available synchronously here because
+    // ItineraryMap is only rendered after loadGoogleMapsApi() resolves
+    // (mapsReady guard in TripEditor). No importLibrary() needed.
     useEffect(() => {
       let cancelled = false;
 
-      // Clear stale route result immediately so the highlight effect doesn't
-      // display outdated segments during the debounce window.
-      setDirResult(null);
-
-      if (debounceTimer.current) {
-        clearTimeout(debounceTimer.current);
-        debounceTimer.current = null;
-      }
-
-      (async () => {
-        if (!containerRef.current) return;
-
-        const { Map } = await google.maps.importLibrary('maps') as google.maps.MapsLibrary;
-        if (cancelled) return;
-
-        // Lazy-init map (styles applied once at creation)
-        if (!mapRef.current) {
-          mapRef.current = new Map(containerRef.current, {
-            center: { lat: 25.033, lng: 121.565 },
-            zoom: 12,
-            mapTypeControl: false,
-            streetViewControl: false,
-            fullscreenControl: true,
-            styles: MAP_STYLES,
-          });
-        }
-        google.maps.event.trigger(mapRef.current, 'resize');
-
-        markerMapRef.current.forEach((m) => {
-          google.maps.event.clearInstanceListeners(m);
-          m.setMap(null);
-        });
-        markerMapRef.current.clear();
-        markerIndexRef.current.clear();
-        clearRoute();
-
-        if (!showMarkers) {
-          onRouteSegmentsRef.current?.([]);
-          return;
-        }
-
-        const valid = activities.filter(
-          (a) => typeof a.lat === 'number' && typeof a.lng === 'number',
-        );
-        if (!valid.length) {
-          onRouteSegmentsRef.current?.([]);
-          return;
-        }
-
-        const positions = resolvePositions(valid);
-        const dayColor  = getDayColor(dayIndex);
-        const total     = valid.length;
-        const bounds    = new google.maps.LatLngBounds();
-
-        // ── Draw markers ─────────────────────────────────────────────
-        valid.forEach((act, i) => {
-          const pos      = positions[i];
-          const isActive = act.id === activeActivityId;
-
-          const marker = new google.maps.Marker({
-            position: pos,
-            map: mapRef.current!,
-            title: act.title || `景點 ${i + 1}`,
-            zIndex: isActive ? 999 : total - i,
-            label: { text: String(i + 1), color: '#ffffff', fontSize: '11px', fontWeight: '700' },
-            icon: makeIcon(dayColor, isActive),
-          });
-
-          marker.addListener('click', () => onMarkerClickRef.current?.(act.id));
-          markerMapRef.current.set(act.id, marker);
-          markerIndexRef.current.set(act.id, i);
-          bounds.extend(pos);
-        });
-
-        // ── fitBounds (full day) with zoom cap ───────────────────────
-        if (valid.length === 1) {
-          mapRef.current.setCenter(positions[0]);
-          mapRef.current.setZoom(15);
-        } else {
-          mapRef.current.fitBounds(bounds, FIT_PADDING);
-          // Remove any previous idle listener that never fired
-          if (idleListenerRef.current) {
-            google.maps.event.removeListener(idleListenerRef.current);
-          }
-          idleListenerRef.current = google.maps.event.addListenerOnce(
-            mapRef.current, 'idle', () => {
-              idleListenerRef.current = null;
-              const z = mapRef.current?.getZoom();
-              if (z !== undefined && z > MAX_SAFE_ZOOM) mapRef.current!.setZoom(MAX_SAFE_ZOOM);
-            },
-          );
-        }
-
-        if (valid.length < 2) {
-          onRouteSegmentsRef.current?.([]);
-          return;
-        }
-
-        const mapSnapshot = mapRef.current;
-
-        // ── Directions API — debounced 500 ms ────────────────────────
-        // Only ONE call per day-tab / activity list change thanks to the cache.
-        debounceTimer.current = setTimeout(async () => {
-          if (cancelled || !mapSnapshot) return;
-
-          const fingerprint = waypointKey(valid);
-
-          // Cache hit: no API call
-          const cached = routeCache.current.get(fingerprint);
-          if (cached) {
-            applyDirectionsResult(cached, mapSnapshot);
-            return;
-          }
-
-          try {
-            const { DirectionsService } =
-              await google.maps.importLibrary('routes') as google.maps.RoutesLibrary;
-            if (cancelled) return;
-
-            const service   = new DirectionsService();
-            const origin    = positions[0];
-            const dest      = positions[positions.length - 1];
-            const midPoints = positions.slice(1, -1).map((p) => ({ location: p, stopover: true }));
-
-            service.route(
-              {
-                origin, destination: dest, waypoints: midPoints,
-                optimizeWaypoints: false,
-                travelMode: google.maps.TravelMode.DRIVING,
-              },
-              (result, status) => {
-                if (cancelled) return;
-
-                if (status === google.maps.DirectionsStatus.OK && result) {
-                  routeCache.current.set(fingerprint, result);
-                  applyDirectionsResult(result, mapSnapshot);
-                } else {
-                  // Fallback: two-layer straight polyline, no segment highlight
-                  console.warn(`Directions API ${status} — fallback to straight polyline`);
-                  clearRoute();
-                  polylineLayersRef.current = Array.from(
-                    drawFallbackPolylines(positions, dayColor, mapSnapshot),
-                  );
-                  onRouteSegmentsRef.current?.([]);
-                }
-              },
-            );
-          } catch (err) {
-            if (cancelled) return;
-            console.warn('Directions API error — fallback', err);
-            clearRoute();
-            polylineLayersRef.current = Array.from(
-              drawFallbackPolylines(positions, dayColor, mapSnapshot),
-            );
-            onRouteSegmentsRef.current?.([]);
-          }
-        }, DIRECTIONS_DEBOUNCE_MS);
-      })();
-
-      return () => {
+      // Shared cleanup — always returned so every code-path releases resources.
+      function doCleanup() {
         cancelled = true;
         if (debounceTimer.current) {
           clearTimeout(debounceTimer.current);
@@ -386,7 +232,160 @@ const ItineraryMapInner = forwardRef<MapHandle, Props>(
           idleListenerRef.current = null;
         }
         clearRoute();
-      };
+      }
+
+      // Clear stale route result immediately so the highlight effect doesn't
+      // display outdated segments during the debounce window.
+      setDirResult(null);
+
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current);
+        debounceTimer.current = null;
+      }
+
+      if (!containerRef.current) return doCleanup;
+
+      // Lazy-init map (styles applied once at creation)
+      if (!mapRef.current) {
+        mapRef.current = new google.maps.Map(containerRef.current, {
+          center: { lat: 25.033, lng: 121.565 },
+          zoom: 12,
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: true,
+          styles: MAP_STYLES,
+        });
+      }
+      google.maps.event.trigger(mapRef.current, 'resize');
+
+      markerMapRef.current.forEach((m) => {
+        google.maps.event.clearInstanceListeners(m);
+        m.setMap(null);
+      });
+      markerMapRef.current.clear();
+      markerIndexRef.current.clear();
+      clearRoute();
+
+      if (!showMarkers) {
+        onRouteSegmentsRef.current?.([]);
+        return doCleanup;
+      }
+
+      const valid = activities.filter(
+        (a) => typeof a.lat === 'number' && typeof a.lng === 'number',
+      );
+      if (!valid.length) {
+        onRouteSegmentsRef.current?.([]);
+        return doCleanup;
+      }
+
+      const positions = resolvePositions(valid);
+      const dayColor  = getDayColor(dayIndex);
+      const total     = valid.length;
+      const bounds    = new google.maps.LatLngBounds();
+
+      // ── Draw markers ─────────────────────────────────────────────
+      valid.forEach((act, i) => {
+        const pos      = positions[i];
+        const isActive = act.id === activeActivityId;
+
+        const marker = new google.maps.Marker({
+          position: pos,
+          map: mapRef.current!,
+          title: act.title || `景點 ${i + 1}`,
+          zIndex: isActive ? 999 : total - i,
+          label: { text: String(i + 1), color: '#ffffff', fontSize: '11px', fontWeight: '700' },
+          icon: makeIcon(dayColor, isActive),
+        });
+
+        marker.addListener('click', () => onMarkerClickRef.current?.(act.id));
+        markerMapRef.current.set(act.id, marker);
+        markerIndexRef.current.set(act.id, i);
+        bounds.extend(pos);
+      });
+
+      // ── fitBounds (full day) with zoom cap ───────────────────────
+      if (valid.length === 1) {
+        mapRef.current.setCenter(positions[0]);
+        mapRef.current.setZoom(15);
+      } else {
+        mapRef.current.fitBounds(bounds, FIT_PADDING);
+        // Remove any previous idle listener that never fired
+        if (idleListenerRef.current) {
+          google.maps.event.removeListener(idleListenerRef.current);
+        }
+        idleListenerRef.current = google.maps.event.addListenerOnce(
+          mapRef.current, 'idle', () => {
+            idleListenerRef.current = null;
+            const z = mapRef.current?.getZoom();
+            if (z !== undefined && z > MAX_SAFE_ZOOM) mapRef.current!.setZoom(MAX_SAFE_ZOOM);
+          },
+        );
+      }
+
+      if (valid.length < 2) {
+        onRouteSegmentsRef.current?.([]);
+        return doCleanup;
+      }
+
+      const mapSnapshot = mapRef.current;
+
+      // ── Directions API — debounced 500 ms ────────────────────────
+      // Only ONE call per day-tab / activity list change thanks to the cache.
+      // DirectionsService is available directly — no importLibrary needed.
+      debounceTimer.current = setTimeout(() => {
+        if (cancelled || !mapSnapshot) return;
+
+        const fingerprint = waypointKey(valid);
+
+        // Cache hit: no API call
+        const cached = routeCache.current.get(fingerprint);
+        if (cached) {
+          applyDirectionsResult(cached, mapSnapshot);
+          return;
+        }
+
+        try {
+          const service   = new google.maps.DirectionsService();
+          const origin    = positions[0];
+          const dest      = positions[positions.length - 1];
+          const midPoints = positions.slice(1, -1).map((p) => ({ location: p, stopover: true }));
+
+          service.route(
+            {
+              origin, destination: dest, waypoints: midPoints,
+              optimizeWaypoints: false,
+              travelMode: google.maps.TravelMode.DRIVING,
+            },
+            (result, status) => {
+              if (cancelled) return;
+
+              if (status === google.maps.DirectionsStatus.OK && result) {
+                routeCache.current.set(fingerprint, result);
+                applyDirectionsResult(result, mapSnapshot);
+              } else {
+                // Fallback: two-layer straight polyline, no segment highlight
+                console.warn(`Directions API ${status} — fallback to straight polyline`);
+                clearRoute();
+                polylineLayersRef.current = Array.from(
+                  drawFallbackPolylines(positions, dayColor, mapSnapshot),
+                );
+                onRouteSegmentsRef.current?.([]);
+              }
+            },
+          );
+        } catch (err) {
+          if (cancelled) return;
+          console.warn('Directions API error — fallback', err);
+          clearRoute();
+          polylineLayersRef.current = Array.from(
+            drawFallbackPolylines(positions, dayColor, mapSnapshot),
+          );
+          onRouteSegmentsRef.current?.([]);
+        }
+      }, DIRECTIONS_DEBOUNCE_MS);
+
+      return doCleanup;
     // activeActivityId excluded: handled by the segment-highlight effect below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activities, showMarkers, dayIndex]);
