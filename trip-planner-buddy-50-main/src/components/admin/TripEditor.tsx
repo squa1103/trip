@@ -159,7 +159,7 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
     // second frame ensures the browser has painted the new height.
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        cardRefs.current[activityId]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        cardRefs.current[activityId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       });
     });
   };
@@ -499,12 +499,15 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
                     <Fragment key={act.id}>
                     <div
                       ref={(el) => { cardRefs.current[act.id] = el; }}
-                      className={`bg-muted/50 rounded-lg border-2 transition-colors text-sm ${
+                      className={`bg-muted/50 rounded-lg border-2 text-sm transition-all duration-200 ${
                         activeActivityId === act.id
                           ? ''
                           : 'border-transparent hover:border-secondary/20'
                       }`}
-                      style={activeActivityId === act.id ? { borderColor: getDayColor(safeIdx) } : undefined}
+                      style={activeActivityId === act.id ? {
+                        borderColor: getDayColor(safeIdx),
+                        boxShadow: `0 0 0 3px ${getDayColor(safeIdx)}30, 0 4px 14px rgba(0,0,0,0.12)`,
+                      } : undefined}
                       draggable
                       onDragStart={(e) => { e.stopPropagation(); handleActivityDragStart(safeIdx, actIdx); }}
                       onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); dragOverActivity.current = { dayIdx: safeIdx, actIdx }; }}
@@ -589,7 +592,7 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
                           className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground whitespace-nowrap"
                           style={{ color: getDayColor(safeIdx) }}
                         >
-                          {seg.duration}{seg.distance ? `・${seg.distance}` : ''}
+                          🚗 {seg.duration}{seg.distance ? ` · ${seg.distance}` : ''}
                         </span>
                         <div className="flex-1 border-t border-dashed border-border/60" />
                       </div>

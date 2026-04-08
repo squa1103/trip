@@ -432,6 +432,12 @@ const ItineraryMap = forwardRef<MapHandle, Props>(
       segBounds.extend(leg.end_location);
       map.fitBounds(segBounds, SEGMENT_FIT_PADDING);
 
+      // Cleanup: remove highlight polylines when deps change or component unmounts
+      return () => {
+        highlightLayersRef.current.forEach((p) => p.setMap(null));
+        highlightLayersRef.current = [];
+      };
+
     // `activities` is intentionally omitted: any change to activities triggers
     // the main effect which resets dirResult → null, which in turn re-runs this
     // effect.  Adding activities here would cause a redundant extra run.
