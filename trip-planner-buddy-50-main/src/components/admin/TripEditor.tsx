@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, DragEvent } from 'react';
+import { useState, useRef, useEffect, Fragment, DragEvent } from 'react';
 import { ArrowLeft, Plus, Trash2, Upload, GripVertical, Users, Luggage, ShoppingCart, Check, X, Clock, ChevronDown } from 'lucide-react';
 import { Trip, DailyItinerary, ActivityCard, HotelInfo, LuggageCategory, ShoppingItem } from '@/types/trip';
 import LuggageModal from '@/components/trip/LuggageModal';
@@ -14,9 +14,10 @@ import {
   remindOffsetOptions,
 } from '@/lib/todoReminders';
 import { loadGoogleMapsApi } from '@/lib/googleMaps';
-import ItineraryMap from '@/components/admin/ItineraryMap';
+import ItineraryMap, { type MapHandle, type RouteSegment } from '@/components/admin/ItineraryMap';
 import PlacesAutocomplete from '@/components/admin/PlacesAutocomplete';
 import type { PlaceData } from '@/components/admin/PlacesAutocomplete';
+import { getDayColor } from '@/lib/dayColors';
 
 interface Props {
   trip: Trip;
@@ -54,6 +55,14 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
   /** Day index whose markers are shown on the map; null = no markers */
   const [mapDayIdx, setMapDayIdx] = useState<number | null>(null);
   const [mapsReady, setMapsReady] = useState(false);
+  /** Activity ID highlighted by clicking a map marker (Map → List). */
+  const [activeActivityId, setActiveActivityId] = useState<string | null>(null);
+  /** Travel-time / distance info between consecutive activities (from Directions API). */
+  const [routeSegments, setRouteSegments] = useState<RouteSegment[]>([]);
+  /** Imperative handle to call panToActivity on the map. */
+  const mapHandleRef = useRef<MapHandle | null>(null);
+  /** DOM refs for each card so we can scrollIntoView on marker click. */
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
     setTrip((prev) => ({ ...prev, luggageList: initial.luggageList, shoppingList: initial.shoppingList }));
@@ -99,13 +108,24 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
   };
 
   const toggleCard = (id: string, dayIdx: number) => {
+    const isExpanding = !expandedCards.has(id);
+
     setExpandedCards((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
-    // Show markers for this day whenever the user interacts with a card
     setMapDayIdx(dayIdx);
+
+    if (isExpanding) {
+      // Highlight this activity (triggers segment-highlight effect in ItineraryMap)
+      setActiveActivityId(id);
+      // Also trigger BOUNCE / fallback panTo via imperative handle
+      const act = trip.dailyItineraries[dayIdx]?.activities.find((a) => a.id === id);
+      if (act?.lat && act?.lng) {
+        mapHandleRef.current?.panToActivity(id);
+      }
+    }
   };
 
   const handlePlaceSelect = (dayIdx: number, actId: string, place: PlaceData) => {
@@ -121,6 +141,27 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
     update('dailyItineraries', updated);
     // Refresh map markers
     setMapDayIdx(dayIdx);
+  };
+
+  /**
+   * Map → List: called when a map marker is clicked.
+   * Directly triggers scrollIntoView (not via useEffect) per the
+   * anti-infinite-loop rule.
+   */
+  const handleMarkerClick = (activityId: string) => {
+    setActiveActivityId(activityId);
+    // Ensure the card is expanded
+    setExpandedCards((prev) => {
+      if (prev.has(activityId)) return prev;
+      return new Set([...prev, activityId]);
+    });
+    // Double rAF: first frame lets React commit the expanded state,
+    // second frame ensures the browser has painted the new height.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        cardRefs.current[activityId]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
+    });
   };
 
   const toggleTodo = (todoId: string) => {
@@ -392,13 +433,17 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
           {trip.dailyItineraries.map((day, dayIdx) => (
             <div key={dayIdx} className="flex items-center gap-1 shrink-0">
               <button
-                onClick={() => { setActiveDayIdx(dayIdx); setMapDayIdx(dayIdx); }}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                onClick={() => { setActiveDayIdx(dayIdx); setMapDayIdx(dayIdx); setActiveActivityId(null); setRouteSegments([]); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                   activeDayIdx === dayIdx
                     ? 'bg-action text-action-foreground'
                     : 'bg-muted text-muted-foreground hover:bg-muted/80'
                 }`}
               >
+                <span
+                  className="w-2 h-2 rounded-full shrink-0"
+                  style={{ backgroundColor: getDayColor(dayIdx) }}
+                />
                 <span>Day {dayIdx + 1}</span>
                 <input
                   type="date"
@@ -448,10 +493,18 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
               >
                 {activeDay.activities.map((act, actIdx) => {
                   const isExpanded = expandedCards.has(act.id);
+                  const seg = routeSegments[actIdx]; // travel info to the NEXT stop
+                  const hasNextCard = actIdx < activeDay.activities.length - 1;
                   return (
+                    <Fragment key={act.id}>
                     <div
-                      key={act.id}
-                      className="bg-muted/50 rounded-lg border-2 border-transparent hover:border-secondary/20 transition-colors text-sm"
+                      ref={(el) => { cardRefs.current[act.id] = el; }}
+                      className={`bg-muted/50 rounded-lg border-2 transition-colors text-sm ${
+                        activeActivityId === act.id
+                          ? ''
+                          : 'border-transparent hover:border-secondary/20'
+                      }`}
+                      style={activeActivityId === act.id ? { borderColor: getDayColor(safeIdx) } : undefined}
                       draggable
                       onDragStart={(e) => { e.stopPropagation(); handleActivityDragStart(safeIdx, actIdx); }}
                       onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); dragOverActivity.current = { dayIdx: safeIdx, actIdx }; }}
@@ -498,25 +551,18 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
                           {/* Places Autocomplete（需 API 金鑰；無金鑰時 fallback 純文字輸入） */}
                           {mapsReady ? (
                             <PlacesAutocomplete
-                              value={act.address}
+                              key={act.id}
+                              initialValue={act.address}
                               onPlaceSelect={(place) => handlePlaceSelect(safeIdx, act.id, place)}
-                              onInputChange={(val) => updateActivity(safeIdx, act.id, 'address', val)}
-                              className="w-full px-2 py-1 rounded border bg-background text-foreground outline-none text-sm"
+                              className="w-full"
                             />
                           ) : (
                             <input
                               value={act.address}
                               onChange={(e) => updateActivity(safeIdx, act.id, 'address', e.target.value)}
-                              placeholder="Google Map URL 或地址"
+                              placeholder="Google Map URL 或地址（Maps API 未載入）"
                               className="w-full px-2 py-1 rounded border bg-background text-foreground outline-none text-sm"
                             />
-                          )}
-
-                          {/* 座標提示 */}
-                          {act.lat && act.lng && (
-                            <p className="text-xs text-muted-foreground">
-                              📍 {act.lat.toFixed(5)}, {act.lng.toFixed(5)}
-                            </p>
                           )}
 
                           <textarea
@@ -535,6 +581,20 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
                         </div>
                       )}
                     </div>
+                    {/* Travel info pill between this card and the next */}
+                    {hasNextCard && seg && (
+                      <div className="flex items-center gap-2 px-2 py-0.5 select-none">
+                        <div className="flex-1 border-t border-dashed border-border/60" />
+                        <span
+                          className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground whitespace-nowrap"
+                          style={{ color: getDayColor(safeIdx) }}
+                        >
+                          {seg.duration}{seg.distance ? `・${seg.distance}` : ''}
+                        </span>
+                        <div className="flex-1 border-t border-dashed border-border/60" />
+                      </div>
+                    )}
+                    </Fragment>
                   );
                 })}
                 <button
@@ -549,8 +609,13 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
               <div className="flex-1 rounded-lg overflow-hidden bg-muted" style={{ height: '600px', position: 'sticky', top: '1rem' }}>
                 {mapsReady ? (
                   <ItineraryMap
+                    ref={mapHandleRef}
                     activities={mapActivities}
                     showMarkers={mapDayIdx !== null}
+                    dayIndex={mapDayIdx ?? safeIdx}
+                    activeActivityId={activeActivityId}
+                    onMarkerClick={handleMarkerClick}
+                    onRouteSegments={setRouteSegments}
                   />
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">

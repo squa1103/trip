@@ -1,36 +1,37 @@
-/** Singleton loader for the Google Maps JavaScript API (with Places library).
+/**
+ * Bootstrap loader for the Google Maps JavaScript API (loading=async mode).
  *
- * Uses the `callback=` URL parameter — the only reliable signal that ALL
- * requested libraries (including `places`) are fully initialised.
+ * With `loading=async`, the script only injects the `google.maps.importLibrary`
+ * stub.  Actual libraries (maps, places, …) are fetched on demand by each
+ * component via `await google.maps.importLibrary('...')`.
+ *
+ * Do NOT use `callback=` or `libraries=` together with `loading=async` —
+ * they conflict with the dynamic import pattern.
  */
-let loadPromise: Promise<void> | null = null;
+let bootstrapPromise: Promise<void> | null = null;
 
 export function loadGoogleMapsApi(apiKey: string): Promise<void> {
   if (typeof window === 'undefined') return Promise.resolve();
-  // Already loaded (including places)?
-  if (window.google?.maps?.places) return Promise.resolve();
-  // Already loading?
-  if (loadPromise) return loadPromise;
 
-  loadPromise = new Promise((resolve, reject) => {
-    // Google calls this global function after every library is ready.
-    (window as Record<string, unknown>).__googleMapsInit = () => {
-      delete (window as Record<string, unknown>).__googleMapsInit;
-      resolve();
-    };
+  // Already bootstrapped?
+  if ((window as Record<string, unknown>).google &&
+      typeof (window as any).google.maps?.importLibrary === 'function') {
+    return Promise.resolve();
+  }
 
+  if (bootstrapPromise) return bootstrapPromise;
+
+  bootstrapPromise = new Promise<void>((resolve, reject) => {
     const script = document.createElement('script');
-    // NOTE: Do NOT add `loading=async` when using `callback=` — the two
-    // mechanisms conflict. The callback approach is the classic, reliable way.
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=__googleMapsInit`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&loading=async`;
     script.async = true;
+    script.onload = () => resolve();
     script.onerror = () => {
-      delete (window as Record<string, unknown>).__googleMapsInit;
-      loadPromise = null; // allow retry
-      reject(new Error('Google Maps API failed to load'));
+      bootstrapPromise = null;
+      reject(new Error('Google Maps bootstrap script failed to load'));
     };
     document.head.appendChild(script);
   });
 
-  return loadPromise;
+  return bootstrapPromise;
 }

@@ -1,4 +1,4 @@
-import { useState, Fragment } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2, KeyRound, X, Check } from 'lucide-react';
 import { listUsers, createUser, updateUserPassword, deleteUser, getSession } from '@/lib/auth';
@@ -24,9 +24,18 @@ const AccountManagement = () => {
 
   const currentUserId = session?.user?.id;
 
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    };
+  }, []);
+
   const showFeedback = (type: 'success' | 'error', msg: string) => {
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
     setFeedback({ type, msg });
-    setTimeout(() => setFeedback(null), 3000);
+    feedbackTimerRef.current = setTimeout(() => setFeedback(null), 3000);
   };
 
   const createMutation = useMutation({

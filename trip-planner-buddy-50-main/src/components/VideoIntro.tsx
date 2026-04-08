@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { introVideoUrl } from '@/data/mockData';
 import { supabase } from '@/lib/supabase';
 
@@ -6,6 +6,13 @@ const VideoIntro = () => {
   const [show, setShow] = useState(true);
   const [fadeOut, setFadeOut] = useState(false);
   const [src, setSrc] = useState<string | null>(null);
+  const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     supabase
@@ -24,7 +31,8 @@ const VideoIntro = () => {
 
   const handleEnd = useCallback(() => {
     setFadeOut(true);
-    setTimeout(() => setShow(false), 800);
+    if (fadeTimerRef.current) clearTimeout(fadeTimerRef.current);
+    fadeTimerRef.current = setTimeout(() => setShow(false), 800);
   }, []);
 
   useEffect(() => {

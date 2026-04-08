@@ -184,3 +184,62 @@
     background: transparent;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Google Maps Places Autocomplete Dropdown  (.pac-container)
+   Used by the legacy Autocomplete widget and as a global reset so
+   Google's default grey/white inconsistencies are overridden.
+   The PlaceAutocompleteElement (Places API New) receives its styles via
+   injected shadow-DOM <style> in PlacesAutocomplete.tsx.
+───────────────────────────────────────────────────────────────────────────── */
+.pac-container {
+  background-color: #ffffff;
+  border: 1px solid #E5DDD5;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  margin-top: 4px;
+  overflow: hidden;
+  padding: 4px 0;
+  font-family: 'Noto Sans TC', sans-serif;
+  z-index: 9999;
+}
+
+/* Hide the "Powered by Google" footer logo */
+.pac-container::after {
+  display: none !important;
+}
+
+.pac-item {
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #374151;
+  cursor: pointer;
+  border-top: 1px solid #F3F0ED;
+}
+.pac-item:first-child {
+  border-top: none;
+}
+.pac-item:hover,
+.pac-item-selected {
+  background-color: #F7F3F0;
+  color: #1F2937;
+}
+
+/* Main place name */
+.pac-item-query {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1F2937;
+}
+
+/* Highlighted matched portion */
+.pac-matched {
+  font-weight: 700;
+  color: #5C4F45;
+}
+
+/* Hide the default grey location-pin icon */
+.pac-icon {
+  display: none;
+}
