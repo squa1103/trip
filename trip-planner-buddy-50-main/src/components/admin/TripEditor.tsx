@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, Fragment, DragEvent } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback, Fragment, DragEvent } from 'react';
 import { ArrowLeft, Plus, Trash2, Upload, GripVertical, Users, Luggage, ShoppingCart, Check, X, Clock, ChevronDown } from 'lucide-react';
 import { Trip, DailyItinerary, ActivityCard, HotelInfo, LuggageCategory, ShoppingItem } from '@/types/trip';
 import LuggageModal from '@/components/trip/LuggageModal';
@@ -59,6 +59,16 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
   const [activeActivityId, setActiveActivityId] = useState<string | null>(null);
   /** Travel-time / distance info between consecutive activities (from Directions API). */
   const [routeSegments, setRouteSegments] = useState<RouteSegment[]>([]);
+  /**
+   * Stable memoised activities array for the currently visible map day.
+   * Without useMemo, a new array reference is created on every render,
+   * which causes ItineraryMap's main effect to re-run and thrash Google Maps
+   * objects — the root cause of the OOM crash in production.
+   */
+  const mapActivities = useMemo(
+    () => mapDayIdx !== null ? (trip.dailyItineraries[mapDayIdx]?.activities ?? []) : [],
+    [trip.dailyItineraries, mapDayIdx],
+  );
   /** Imperative handle to call panToActivity on the map. */
   const mapHandleRef = useRef<MapHandle | null>(null);
   /** DOM refs for each card so we can scrollIntoView on marker click. */
@@ -145,10 +155,12 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
 
   /**
    * Map → List: called when a map marker is clicked.
-   * Directly triggers scrollIntoView (not via useEffect) per the
-   * anti-infinite-loop rule.
+   * Wrapped in useCallback so the reference is stable across TripEditor
+   * re-renders — this prevents React.memo on ItineraryMap from seeing a
+   * changed `onMarkerClick` prop when unrelated state (e.g. typing in a
+   * title field) updates.
    */
-  const handleMarkerClick = (activityId: string) => {
+  const handleMarkerClick = useCallback((activityId: string) => {
     setActiveActivityId(activityId);
     // Ensure the card is expanded
     setExpandedCards((prev) => {
@@ -162,7 +174,7 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
         cardRefs.current[activityId]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       });
     });
-  };
+  }, []); // deps empty: only uses stable state setters + cardRefs
 
   const toggleTodo = (todoId: string) => {
     const next = trip.todos.map((t) => (t.id === todoId ? { ...t, checked: !t.checked } : t));
@@ -479,10 +491,7 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
         {trip.dailyItineraries.length > 0 && (() => {
           const safeIdx = Math.min(activeDayIdx, trip.dailyItineraries.length - 1);
           const activeDay = trip.dailyItineraries[safeIdx];
-          const mapActivities =
-            mapDayIdx !== null
-              ? (trip.dailyItineraries[mapDayIdx]?.activities ?? [])
-              : [];
+          // mapActivities is memoised at component level — do NOT redefine here.
 
           return (
             <div className="flex gap-4" style={{ minHeight: '500px' }}>

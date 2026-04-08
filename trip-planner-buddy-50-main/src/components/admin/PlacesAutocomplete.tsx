@@ -38,6 +38,13 @@ const PlacesAutocomplete = ({ initialValue, onPlaceSelect, className }: Props) =
   const onPlaceSelectRef = useRef(onPlaceSelect);
   useEffect(() => { onPlaceSelectRef.current = onPlaceSelect; });
 
+  // ── Cleanup debounce on unmount ──────────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
   // ── Initialise session token ──────────────────────────────────────────────
   useEffect(() => {
     (async () => {

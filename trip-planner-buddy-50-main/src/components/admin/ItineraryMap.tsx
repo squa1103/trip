@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle, memo } from 'react';
 import { ActivityCard } from '@/types/trip';
 import { getDayColor } from '@/lib/dayColors';
 
@@ -104,7 +104,7 @@ function drawFallbackPolylines(
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-const ItineraryMap = forwardRef<MapHandle, Props>(
+const ItineraryMapInner = forwardRef<MapHandle, Props>(
   ({ activities, showMarkers, dayIndex, activeActivityId, onMarkerClick, onRouteSegments }, ref) => {
     const containerRef   = useRef<HTMLDivElement>(null);
     const mapRef         = useRef<google.maps.Map | null>(null);
@@ -117,9 +117,15 @@ const ItineraryMap = forwardRef<MapHandle, Props>(
     /** [white outline, colour fill] for the currently highlighted segment. */
     const highlightLayersRef = useRef<google.maps.Polyline[]>([]);
     const debounceTimer      = useRef<ReturnType<typeof setTimeout> | null>(null);
+    /** Stored so we can remove it in cleanup if the component unmounts before idle fires. */
+    const idleListenerRef    = useRef<google.maps.MapsEventListener | null>(null);
     const routeCache         = useRef<Map<string, google.maps.DirectionsResult>>(new Map());
     const onRouteSegmentsRef = useRef(onRouteSegments);
     useEffect(() => { onRouteSegmentsRef.current = onRouteSegments; });
+    /** Ref mirror of onMarkerClick — kept in sync so the marker listener never goes stale
+     *  even when React.memo skips re-renders (and the prop function reference changes). */
+    const onMarkerClickRef = useRef(onMarkerClick);
+    useEffect(() => { onMarkerClickRef.current = onMarkerClick; });
 
     /**
      * Directions API result for the current day.
@@ -232,7 +238,10 @@ const ItineraryMap = forwardRef<MapHandle, Props>(
         }
         google.maps.event.trigger(mapRef.current, 'resize');
 
-        markerMapRef.current.forEach((m) => m.setMap(null));
+        markerMapRef.current.forEach((m) => {
+          google.maps.event.clearInstanceListeners(m);
+          m.setMap(null);
+        });
         markerMapRef.current.clear();
         markerIndexRef.current.clear();
         clearRoute();
@@ -269,7 +278,7 @@ const ItineraryMap = forwardRef<MapHandle, Props>(
             icon: makeIcon(dayColor, isActive),
           });
 
-          marker.addListener('click', () => onMarkerClick?.(act.id));
+          marker.addListener('click', () => onMarkerClickRef.current?.(act.id));
           markerMapRef.current.set(act.id, marker);
           markerIndexRef.current.set(act.id, i);
           bounds.extend(pos);
@@ -281,10 +290,17 @@ const ItineraryMap = forwardRef<MapHandle, Props>(
           mapRef.current.setZoom(15);
         } else {
           mapRef.current.fitBounds(bounds, FIT_PADDING);
-          google.maps.event.addListenerOnce(mapRef.current, 'idle', () => {
-            const z = mapRef.current?.getZoom();
-            if (z !== undefined && z > MAX_SAFE_ZOOM) mapRef.current!.setZoom(MAX_SAFE_ZOOM);
-          });
+          // Remove any previous idle listener that never fired
+          if (idleListenerRef.current) {
+            google.maps.event.removeListener(idleListenerRef.current);
+          }
+          idleListenerRef.current = google.maps.event.addListenerOnce(
+            mapRef.current, 'idle', () => {
+              idleListenerRef.current = null;
+              const z = mapRef.current?.getZoom();
+              if (z !== undefined && z > MAX_SAFE_ZOOM) mapRef.current!.setZoom(MAX_SAFE_ZOOM);
+            },
+          );
         }
 
         if (valid.length < 2) {
@@ -359,9 +375,16 @@ const ItineraryMap = forwardRef<MapHandle, Props>(
           clearTimeout(debounceTimer.current);
           debounceTimer.current = null;
         }
-        markerMapRef.current.forEach((m) => m.setMap(null));
+        markerMapRef.current.forEach((m) => {
+          google.maps.event.clearInstanceListeners(m);
+          m.setMap(null);
+        });
         markerMapRef.current.clear();
         markerIndexRef.current.clear();
+        if (idleListenerRef.current) {
+          google.maps.event.removeListener(idleListenerRef.current);
+          idleListenerRef.current = null;
+        }
         clearRoute();
       };
     // activeActivityId excluded: handled by the segment-highlight effect below.
@@ -448,5 +471,26 @@ const ItineraryMap = forwardRef<MapHandle, Props>(
   },
 );
 
-ItineraryMap.displayName = 'ItineraryMap';
+ItineraryMapInner.displayName = 'ItineraryMap';
+
+/**
+ * Custom equality check: only re-render when map-relevant props change.
+ * Non-map fields (title, notes, time, etc.) changing does NOT trigger
+ * marker/route rebuild — preventing the OOM cascade on every keystroke.
+ */
+function arePropsEqual(prev: Props, next: Props): boolean {
+  if (prev.showMarkers       !== next.showMarkers)       return false;
+  if (prev.dayIndex          !== next.dayIndex)          return false;
+  if (prev.activeActivityId  !== next.activeActivityId)  return false;
+  if (prev.activities.length !== next.activities.length) return false;
+  for (let i = 0; i < prev.activities.length; i++) {
+    const a = prev.activities[i], b = next.activities[i];
+    if (a.id !== b.id || a.lat !== b.lat || a.lng !== b.lng) return false;
+  }
+  return true; // identical from the map's perspective → skip re-render
+  // onMarkerClick / onRouteSegments are intentionally excluded:
+  // they are kept current via onMarkerClickRef / onRouteSegmentsRef inside.
+}
+
+const ItineraryMap = memo(ItineraryMapInner, arePropsEqual);
 export default ItineraryMap;
