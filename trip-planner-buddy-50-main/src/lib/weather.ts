@@ -13,8 +13,9 @@ export function getWeatherApiKey(): string | null {
   return k && k.length > 0 ? k : null;
 }
 
+/** Strip embedded coords suffix before comparing ("City, CC|lat,lon" → "city, cc") */
 export function normalizeCityKey(name: string): string {
-  return name.trim().toLowerCase();
+  return name.split('|')[0].trim().toLowerCase();
 }
 
 export interface GeoCityHit {
@@ -148,33 +149,42 @@ async function fetchCurrentAndForecast(
     }
   }
 
-  const [weatherRes, forecastRes] = await Promise.all([
-    fetch(weatherUrl.toString()),
-    fetch(forecastUrl.toString()),
-  ]);
+  try {
+    const [weatherRes, forecastRes] = await Promise.all([
+      fetch(weatherUrl.toString()),
+      fetch(forecastUrl.toString()),
+    ]);
 
-  if (!weatherRes.ok) return null;
-  const weatherJson = (await weatherRes.json()) as Record<string, unknown>;
-  const current = mapWeatherResponse(weatherJson, key);
+    if (!weatherRes.ok) return null;
+    const weatherJson = (await weatherRes.json()) as Record<string, unknown>;
+    const current = mapWeatherResponse(weatherJson, key);
 
-  let forecast48h: ForecastHourItem[] = [];
-  if (forecastRes.ok) {
-    const forecastJson = (await forecastRes.json()) as { list?: unknown[] };
-    const list = Array.isArray(forecastJson.list) ? forecastJson.list : [];
-    forecast48h = mapForecastList(list);
+    let forecast48h: ForecastHourItem[] = [];
+    if (forecastRes.ok) {
+      const forecastJson = (await forecastRes.json()) as { list?: unknown[] };
+      const list = Array.isArray(forecastJson.list) ? forecastJson.list : [];
+      forecast48h = mapForecastList(list);
+    }
+
+    return { current, forecast48h };
+  } catch {
+    return null;
   }
-
-  return { current, forecast48h };
 }
 
 /**
  * 依城市字串抓取當前天氣 + 48h 預報；快取 30 分鐘內直接回傳整包。
+ *
+ * 支援兩種格式：
+ *  - 舊格式：`"Taipei, TW"` → 使用 q=name 查詢
+ *  - 新格式：`"Okinawa Island, JP|26.2124,127.6809"` → 優先使用座標查詢，避免城市名
+ *    不在 OWM 資料庫造成 404
  */
-export async function fetchWeatherWithCache(cityName: string): Promise<WeatherBundle | null> {
+export async function fetchWeatherWithCache(cityEntry: string): Promise<WeatherBundle | null> {
   const key = getWeatherApiKey();
   if (!key) return null;
 
-  const trimmed = cityName.trim();
+  const trimmed = cityEntry.trim();
   if (!trimmed) return null;
 
   const cached = readCache(trimmed);
@@ -182,7 +192,14 @@ export async function fetchWeatherWithCache(cityName: string): Promise<WeatherBu
     return cached.data;
   }
 
-  const bundle = await fetchCurrentAndForecast(trimmed, { q: trimmed });
+  // Parse embedded coords if present (new format: "City, CC|lat,lon")
+  const { lat, lon } = parseTrackedCityLabel(trimmed);
+  const params: { q?: string; lat?: number; lon?: number } =
+    lat !== undefined && lon !== undefined
+      ? { lat, lon }
+      : { q: trimmed };
+
+  const bundle = await fetchCurrentAndForecast(trimmed, params);
   if (!bundle) return null;
   writeCache(trimmed, bundle);
   return bundle;
@@ -244,18 +261,50 @@ export async function fetchWeatherByCoordsWithCache(
   return bundle;
 }
 
+/**
+ * 格式：`"Okinawa Island, JP|26.2124,127.6809"`
+ * 將座標嵌入標籤，讓快取過期後重新抓取時可以直接用座標，
+ * 不再依賴城市名稱（避免 OWM 找不到名稱而 404）。
+ */
 export function formatTrackedCityLabel(hit: GeoCityHit): string {
-  return `${hit.name}, ${hit.country}`;
+  return `${hit.name}, ${hit.country}|${hit.lat.toFixed(4)},${hit.lon.toFixed(4)}`;
 }
 
-/** 解析追蹤字串「城市, 國碼」供標題顯示 */
-export function parseTrackedCityLabel(queryKey: string): { cityName: string; countryCode: string } {
-  const trimmed = queryKey.trim();
+/**
+ * 解析追蹤字串，支援新舊兩種格式：
+ *  - 舊格式：`"Taipei, TW"` → `{ cityName: "Taipei", countryCode: "TW" }`
+ *  - 新格式：`"Okinawa Island, JP|26.2124,127.6809"` → 同上 + `lat/lon`
+ */
+export function parseTrackedCityLabel(queryKey: string): {
+  cityName: string;
+  countryCode: string;
+  lat?: number;
+  lon?: number;
+} {
+  // Split off coords suffix
+  const [base, coordsPart] = queryKey.split('|');
+  let lat: number | undefined;
+  let lon: number | undefined;
+  if (coordsPart) {
+    const [a, b] = coordsPart.split(',');
+    if (a && b) {
+      const parsedLat = parseFloat(a);
+      const parsedLon = parseFloat(b);
+      if (Number.isFinite(parsedLat) && Number.isFinite(parsedLon)) {
+        lat = parsedLat;
+        lon = parsedLon;
+      }
+    }
+  }
+
+  const trimmed = base.trim();
   const lastComma = trimmed.lastIndexOf(',');
-  if (lastComma <= 0) return { cityName: trimmed, countryCode: '' };
+  if (lastComma <= 0) return { cityName: trimmed, countryCode: '', lat, lon };
   return {
     cityName: trimmed.slice(0, lastComma).trim(),
     countryCode: trimmed.slice(lastComma + 1).trim(),
+    lat,
+    lon,
   };
 }
 

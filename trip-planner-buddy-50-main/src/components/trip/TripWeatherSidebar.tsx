@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, Plus, Trash2, ChevronDown } from 'lucide-react';
+import { Loader2, Plus, Trash2, ChevronDown, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
@@ -39,15 +39,21 @@ export default function TripWeatherSidebar({ weatherCities, onWeatherCitiesChang
       return;
     }
     setLoadingWeather(true);
-    const next: Record<string, WeatherBundle | null> = {};
-    await Promise.all(
-      cities.map(async (city) => {
-        const data = await fetchWeatherWithCache(city);
-        next[city] = data;
-      }),
-    );
-    setWeatherByCity(next);
-    setLoadingWeather(false);
+    try {
+      const next: Record<string, WeatherBundle | null> = {};
+      await Promise.all(
+        cities.map(async (city) => {
+          try {
+            next[city] = await fetchWeatherWithCache(city);
+          } catch {
+            next[city] = null;
+          }
+        }),
+      );
+      setWeatherByCity(next);
+    } finally {
+      setLoadingWeather(false);
+    }
   }, [hasKey]);
 
   useEffect(() => {
@@ -75,13 +81,16 @@ export default function TripWeatherSidebar({ weatherCities, onWeatherCitiesChang
     const exists = weatherCities.some((c) => normalizeCityKey(c) === normalizeCityKey(label));
     if (exists) return;
 
-    const next = [...weatherCities, label];
-    onWeatherCitiesChange(next);
-
-    const data = await fetchWeatherByCoordsWithCache(previewHit.lat, previewHit.lon, label);
-    setWeatherByCity((prev) => ({ ...prev, [label]: data }));
+    onWeatherCitiesChange([...weatherCities, label]);
     setPreviewHit(null);
     setSearch('');
+
+    try {
+      const data = await fetchWeatherByCoordsWithCache(previewHit.lat, previewHit.lon, label);
+      setWeatherByCity((prev) => ({ ...prev, [label]: data }));
+    } catch {
+      setWeatherByCity((prev) => ({ ...prev, [label]: null }));
+    }
   };
 
   const handleRemove = (city: string) => {
@@ -168,8 +177,13 @@ export default function TripWeatherSidebar({ weatherCities, onWeatherCitiesChang
           aria-label="追蹤城市天氣（可左右滑動）"
         >
           {weatherCities.map((city) => {
-            const bundle = weatherByCity[city];
-            const w = bundle?.current;
+            // Three states:
+            //   undefined  → city not yet in map → still loading
+            //   null       → fetch completed but failed (404 / network error)
+            //   WeatherBundle → success
+            const inMap  = city in weatherByCity;
+            const bundle = weatherByCity[city];   // null | WeatherBundle when inMap
+            const w      = bundle?.current;
             const { cityName, countryCode } = parseTrackedCityLabel(city);
             const isOpen = expandedCity === city;
             const dayGroups = bundle?.forecast48h?.length
@@ -189,21 +203,29 @@ export default function TripWeatherSidebar({ weatherCities, onWeatherCitiesChang
                       {countryCode && (
                         <p className="text-xs text-muted-foreground mt-0.5">{countryCode}</p>
                       )}
-                      {w ? (
-                        <>
-                          <div className="flex items-center gap-2 mt-2">
-                            <img src={w.iconUrl} alt="" className="h-12 w-12 shrink-0" />
-                            <span className="text-2xl font-semibold tabular-nums">
-                              {Number.isFinite(w.tempC) ? `${Math.round(w.tempC)}°` : '—'}
-                            </span>
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-1 capitalize">{w.description}</p>
-                        </>
-                      ) : (
+                      {!inMap ? (
+                        /* Loading: city added but fetch not yet settled */
                         <div className="flex items-center gap-2 mt-2 text-muted-foreground">
                           <Loader2 className="h-4 w-4 animate-spin" />
                           <span className="text-xs">載入中…</span>
                         </div>
+                      ) : !bundle ? (
+                        /* Error: fetch returned null (404 / network error) */
+                        <div className="flex items-center gap-1.5 mt-2 text-muted-foreground">
+                          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                          <span className="text-xs">暫無資料</span>
+                        </div>
+                      ) : (
+                        /* Success */
+                        <>
+                          <div className="flex items-center gap-2 mt-2">
+                            <img src={w!.iconUrl} alt="" className="h-12 w-12 shrink-0" />
+                            <span className="text-2xl font-semibold tabular-nums">
+                              {Number.isFinite(w!.tempC) ? `${Math.round(w!.tempC)}°` : '—'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1 capitalize">{w!.description}</p>
+                        </>
                       )}
                     </div>
                     <button
@@ -219,16 +241,19 @@ export default function TripWeatherSidebar({ weatherCities, onWeatherCitiesChang
                     </button>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => toggleExpand(city)}
-                    className="mt-3 w-full flex items-center justify-between gap-2 rounded-md px-2 py-2 text-sm text-secondary hover:bg-muted/50 transition-colors"
-                  >
-                    <span>查看詳細預報</span>
-                    <ChevronDown
-                      className={cn('h-4 w-4 shrink-0 transition-transform duration-300', isOpen && 'rotate-180')}
-                    />
-                  </button>
+                  {/* Only show forecast toggle when data is available */}
+                  {inMap && bundle && (
+                    <button
+                      type="button"
+                      onClick={() => toggleExpand(city)}
+                      className="mt-3 w-full flex items-center justify-between gap-2 rounded-md px-2 py-2 text-sm text-secondary hover:bg-muted/50 transition-colors"
+                    >
+                      <span>查看詳細預報</span>
+                      <ChevronDown
+                        className={cn('h-4 w-4 shrink-0 transition-transform duration-300', isOpen && 'rotate-180')}
+                      />
+                    </button>
+                  )}
                 </div>
 
                 {/* 展開：垂直預報清單 + 動畫 */}
