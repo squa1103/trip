@@ -292,6 +292,41 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
     update('dailyItineraries', updated);
   };
 
+  /**
+   * Called when the user clicks 儲存.
+   * If coverImage is still a legacy base64 data URL, upload it to Supabase Storage
+   * first and swap in the HTTPS URL before calling onSave — transparent lazy migration.
+   * On any upload error, falls back to saving with the original base64 so the user
+   * is never blocked.
+   */
+  const handleSave = async () => {
+    let tripToSave = trip;
+
+    if (trip.coverImage.startsWith('data:')) {
+      try {
+        const res = await fetch(trip.coverImage);
+        const blob = await res.blob();
+        const ext = blob.type.split('/')[1] || 'jpg';
+        const coverPath = `covers/${crypto.randomUUID()}.${ext}`;
+        const { error } = await supabase.storage
+          .from('homepage-media')
+          .upload(coverPath, blob, { contentType: blob.type, upsert: false });
+        if (!error) {
+          const { data: urlData } = supabase.storage.from('homepage-media').getPublicUrl(coverPath);
+          const newUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+          tripToSave = { ...trip, coverImage: newUrl };
+          // Sync local state so the preview immediately shows the URL
+          update('coverImage', newUrl);
+        }
+      } catch (err) {
+        console.error('封面遷移失敗，以原始 base64 儲存', err);
+        // Non-blocking: proceed with base64 rather than blocking the save
+      }
+    }
+
+    onSave(tripToSave);
+  };
+
   const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -331,7 +366,7 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
         </button>
         <h2 className="text-xl font-bold text-foreground flex-1">編輯行程</h2>
         <button
-          onClick={() => onSave(trip)}
+          onClick={() => void handleSave()}
           disabled={isSaving}
           className="px-6 py-2 rounded-lg bg-action text-action-foreground font-medium hover:bg-action/90 disabled:opacity-60"
         >
