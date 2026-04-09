@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Trip } from '@/types/trip';
 import TripEditor from '@/components/admin/TripEditor';
 import { fetchTrips, fetchTripById, createTrip, updateTrip, deleteTrip } from '@/lib/trips';
+import { supabase } from '@/lib/supabase';
 
 const emptyTrip = (): Trip => ({
   id: crypto.randomUUID(),
@@ -101,6 +102,14 @@ const TripManagement = () => {
 
   const handleDelete = async (id: string) => {
     if (confirm('確定刪除此行程?')) {
+      // Clean up Storage cover if it was uploaded there
+      const trip = trips.find((t) => t.id === id);
+      if (trip?.coverImage?.includes('/homepage-media/covers/')) {
+        const pathMatch = trip.coverImage.match(/homepage-media\/(.+?)(\?|$)/);
+        if (pathMatch?.[1]) {
+          await supabase.storage.from('homepage-media').remove([decodeURIComponent(pathMatch[1])]);
+        }
+      }
       await deleteMutation.mutateAsync(id);
     }
   };

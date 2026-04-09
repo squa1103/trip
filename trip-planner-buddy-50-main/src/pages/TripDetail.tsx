@@ -473,9 +473,6 @@ const TripDetail = () => {
                           onClick={() => setSelectedActivity(activity)}
                           className="w-full min-w-0 text-left bg-muted/50 rounded-lg overflow-hidden hover:shadow-md transition-shadow group"
                         >
-                          {activity.coverImage && (
-                            <img src={activity.coverImage} alt={activity.title} className="w-full max-w-full h-32 object-cover group-hover:scale-105 transition-transform duration-300" />
-                          )}
                           <div className="p-3 min-w-0">
                             <p className="font-medium text-foreground text-sm truncate">{activity.title}</p>
                             <span className="inline-block max-w-full truncate mt-1 px-2 py-0.5 bg-secondary/20 text-secondary text-xs rounded-full">{activity.type}</span>

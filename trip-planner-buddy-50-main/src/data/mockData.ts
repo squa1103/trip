@@ -26,27 +26,27 @@ export const mockTrips: Trip[] = [
       return: { airline: '中華航空', flightNumber: 'CI101', departureTime: '2026-04-05 14:00', arrivalTime: '2026-04-05 17:00', departureAirport: '成田國際機場 NRT', arrivalAirport: '桃園國際機場 TPE', checkedBaggage: 23, carryOnBaggage: 7 },
     },
     hotels: [
-      { id: 'h1', name: '新宿華盛頓飯店', checkIn: '2026-04-01', checkOut: '2026-04-03', address: 'https://maps.google.com/?q=東京都新宿區西新宿3-2-9', confirmationNumber: 'HT-20260401' },
-      { id: 'h2', name: '淺草豪景飯店', checkIn: '2026-04-03', checkOut: '2026-04-05', address: 'https://maps.google.com/?q=東京都台東區西淺草3-17-1', confirmationNumber: 'HT-20260403' },
+      { id: 'h1', name: '新宿華盛頓飯店', checkIn: '2026-04-01', checkOut: '2026-04-03', address: '東京都新宿區西新宿3-2-9', confirmationNumber: 'HT-20260401' },
+      { id: 'h2', name: '淺草豪景飯店', checkIn: '2026-04-03', checkOut: '2026-04-05', address: '東京都台東區西淺草3-17-1', confirmationNumber: 'HT-20260403' },
     ],
     dailyItineraries: [
       {
         date: '2026-04-01',
         activities: [
-          { id: 'a1', coverImage: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=400&h=300&fit=crop', title: '一蘭拉麵 新宿店', type: '美食', address: 'https://maps.google.com/?q=東京都新宿區歌舞伎町1-22-7', notes: '必吃豚骨拉麵', price: 1200, payers: '小明', members: '小明, 小華, 小美', memberCount: 3, amountPerPerson: 400, settlementStatus: 'unsettled', receipts: [] },
+          { id: 'a1', title: '一蘭拉麵 新宿店', type: '美食', address: '東京都新宿區歌舞伎町1-22-7', notes: '必吃豚骨拉麵', price: 1200, payers: '小明', members: '小明, 小華, 小美', memberCount: 3, amountPerPerson: 400, settlementStatus: 'unsettled' },
         ],
       },
       {
         date: '2026-04-02',
         activities: [
-          { id: 'a2', coverImage: 'https://images.unsplash.com/photo-1545569341-9eb8b30979d9?w=400&h=300&fit=crop', title: '明治神宮', type: '景點', address: 'https://maps.google.com/?q=東京都澀谷區代代木神園町1-1', notes: '<p>日本最著名的神社之一</p>', price: 0, payers: '', members: '', memberCount: 0, amountPerPerson: 0, settlementStatus: 'settled', receipts: [] },
-          { id: 'a3', coverImage: 'https://images.unsplash.com/photo-1528164344885-47b1492b2f55?w=400&h=300&fit=crop', title: '竹下通', type: '購物', address: 'https://maps.google.com/?q=東京都澀谷區神宮前1', notes: '', price: 5000, payers: '小華', members: '小明, 小華', memberCount: 2, amountPerPerson: 2500, settlementStatus: 'unsettled', receipts: [] },
+          { id: 'a2', title: '明治神宮', type: '景點', address: '東京都澀谷區代代木神園町1-1', notes: '<p>日本最著名的神社之一</p>', price: 0, payers: '', members: '', memberCount: 0, amountPerPerson: 0, settlementStatus: 'settled' },
+          { id: 'a3', title: '竹下通', type: '購物', address: '東京都澀谷區神宮前1', notes: '', price: 5000, payers: '小華', members: '小明, 小華', memberCount: 2, amountPerPerson: 2500, settlementStatus: 'unsettled' },
         ],
       },
       {
         date: '2026-04-03',
         activities: [
-          { id: 'a4', coverImage: 'https://images.unsplash.com/photo-1583086762675-5a88bcc72cee?w=400&h=300&fit=crop', title: '淺草寺', type: '景點', address: 'https://maps.google.com/?q=東京都台東區淺草2-3-1', notes: '', price: 0, payers: '', members: '', memberCount: 0, amountPerPerson: 0, settlementStatus: 'settled', receipts: [] },
+          { id: 'a4', title: '淺草寺', type: '景點', address: '東京都台東區淺草2-3-1', notes: '', price: 0, payers: '', members: '', memberCount: 0, amountPerPerson: 0, settlementStatus: 'settled' },
         ],
       },
     ],
@@ -71,9 +71,9 @@ export const mockTrips: Trip[] = [
     status: 'ongoing',
     todos: [{ id: 't5', text: '預約賞鯨', checked: false }],
     flights: { departure: { airline: '', flightNumber: '', departureTime: '', arrivalTime: '', departureAirport: '', arrivalAirport: '', checkedBaggage: 0, carryOnBaggage: 0 }, return: { airline: '', flightNumber: '', departureTime: '', arrivalTime: '', departureAirport: '', arrivalAirport: '', checkedBaggage: 0, carryOnBaggage: 0 } },
-    hotels: [{ id: 'h3', name: '花蓮煙波大飯店', checkIn: '2026-03-15', checkOut: '2026-03-17', address: 'https://maps.google.com/?q=花蓮縣花蓮市中美路142號', confirmationNumber: 'FL-001' }],
+    hotels: [{ id: 'h3', name: '花蓮煙波大飯店', checkIn: '2026-03-15', checkOut: '2026-03-17', address: '花蓮縣花蓮市中美路142號', confirmationNumber: 'FL-001' }],
     dailyItineraries: [
-      { date: '2026-03-15', activities: [{ id: 'a5', coverImage: 'https://images.unsplash.com/photo-1501594907352-04cda38ebc29?w=400&h=300&fit=crop', title: '太魯閣國家公園', type: '景點', address: 'https://maps.google.com/?q=花蓮縣秀林鄉富世291號', notes: '', price: 0, payers: '', members: '', memberCount: 0, amountPerPerson: 0, settlementStatus: 'settled', receipts: [] }] },
+      { date: '2026-03-15', activities: [{ id: 'a5', title: '太魯閣國家公園', type: '景點', address: '花蓮縣秀林鄉富世291號', notes: '', price: 0, payers: '', members: '', memberCount: 0, amountPerPerson: 0, settlementStatus: 'settled' }] },
     ],
     luggageList: [],
     shoppingList: [],

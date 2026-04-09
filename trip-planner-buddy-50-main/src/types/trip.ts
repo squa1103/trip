@@ -61,7 +61,6 @@ export interface DailyItinerary {
 
 export interface ActivityCard {
   id: string;
-  coverImage: string;
   title: string;
   type: string;
   /** 活動時間，格式 HH:mm，例如 "09:30" */
@@ -80,7 +79,6 @@ export interface ActivityCard {
   memberCount: number;
   amountPerPerson: number;
   settlementStatus: 'unsettled' | 'settled';
-  receipts: string[];
 }
 
 export interface LuggageCategory {

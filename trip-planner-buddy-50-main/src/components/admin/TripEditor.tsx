@@ -14,6 +14,7 @@ import {
   remindOffsetOptions,
 } from '@/lib/todoReminders';
 import { loadGoogleMapsApi } from '@/lib/googleMaps';
+import { supabase } from '@/lib/supabase';
 import ItineraryMap, { type MapHandle, type RouteSegment } from '@/components/admin/ItineraryMap';
 import PlacesAutocomplete from '@/components/admin/PlacesAutocomplete';
 import type { PlaceData } from '@/components/admin/PlacesAutocomplete';
@@ -59,6 +60,7 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
   const [activeActivityId, setActiveActivityId] = useState<string | null>(null);
   /** Travel-time / distance info between consecutive activities (from Directions API). */
   const [routeSegments, setRouteSegments] = useState<RouteSegment[]>([]);
+  const [coverUploading, setCoverUploading] = useState(false);
   /**
    * Stable memoised activities array for the currently visible map day.
    * Without useMemo, a new array reference is created on every render,
@@ -253,7 +255,6 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
   const addActivity = (dayIndex: number) => {
     const newActivity: ActivityCard = {
       id: crypto.randomUUID(),
-      coverImage: '',
       title: '',
       type: '景點',
       address: '',
@@ -264,7 +265,6 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
       memberCount: 0,
       amountPerPerson: 0,
       settlementStatus: 'unsettled',
-      receipts: [],
     };
     const updated = [...trip.dailyItineraries];
     updated[dayIndex] = { ...updated[dayIndex], activities: [...updated[dayIndex].activities, newActivity] };
@@ -295,8 +295,32 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
   const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const dataUrl = await fileToDataUrl(file);
-    update('coverImage', dataUrl);
+    setCoverUploading(true);
+    try {
+      // Delete previous Storage cover if one exists
+      const oldCover = trip.coverImage;
+      if (oldCover?.includes('/homepage-media/covers/')) {
+        const pathMatch = oldCover.match(/homepage-media\/(.+?)(\?|$)/);
+        if (pathMatch?.[1]) {
+          await supabase.storage.from('homepage-media').remove([decodeURIComponent(pathMatch[1])]);
+        }
+      }
+      const ext = file.type.split('/')[1] || 'jpg';
+      const coverPath = `covers/${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage
+        .from('homepage-media')
+        .upload(coverPath, file, { contentType: file.type, upsert: false });
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from('homepage-media').getPublicUrl(coverPath);
+      update('coverImage', `${urlData.publicUrl}?t=${Date.now()}`);
+    } catch (err) {
+      console.error('封面上傳失敗，改用本機預覽', err);
+      const dataUrl = await fileToDataUrl(file);
+      update('coverImage', dataUrl);
+    } finally {
+      setCoverUploading(false);
+      e.target.value = '';
+    }
   };
 
   return (
@@ -335,9 +359,14 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
             <input ref={coverInputRef} type="file" accept="image/*" onChange={handleCoverUpload} className="hidden" />
             <button
               onClick={() => coverInputRef.current?.click()}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed bg-background text-muted-foreground text-sm hover:border-secondary hover:text-secondary transition-colors"
+              disabled={coverUploading}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed bg-background text-muted-foreground text-sm hover:border-secondary hover:text-secondary transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <Upload className="h-4 w-4" /> {trip.coverImage ? '重新上傳封面' : '上傳封面圖片'}
+              {coverUploading ? (
+                <><span className="h-4 w-4 rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground animate-spin" /> 上傳中...</>
+              ) : (
+                <><Upload className="h-4 w-4" /> {trip.coverImage ? '重新上傳封面' : '上傳封面圖片'}</>
+              )}
             </button>
           </div>
           <div>
@@ -572,7 +601,7 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
                             <input
                               value={act.address}
                               onChange={(e) => updateActivity(safeIdx, act.id, 'address', e.target.value)}
-                              placeholder="Google Map URL 或地址（Maps API 未載入）"
+                              placeholder="輸入地址（Maps API 未載入）"
                               className="w-full px-2 py-1 rounded border bg-background text-foreground outline-none text-sm"
                             />
                           )}

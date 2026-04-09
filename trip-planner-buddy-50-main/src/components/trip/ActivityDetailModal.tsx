@@ -7,17 +7,19 @@ interface Props {
 }
 
 const ActivityDetailModal = ({ activity, onClose }: Props) => {
-  const isUrl = activity.address?.startsWith('http');
+  // Build a Google Maps search link from the stored coordinates or address text
+  const mapsHref = activity.lat && activity.lng
+    ? `https://www.google.com/maps/search/?api=1&query=${activity.lat},${activity.lng}${activity.placeId ? `&query_place_id=${activity.placeId}` : ''}`
+    : activity.address
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activity.address)}`
+      : null;
 
   return (
     <div className="fixed inset-0 z-50 bg-primary/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-card rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl animate-slide-up" onClick={(e) => e.stopPropagation()}>
-        {/* Cover */}
-        <div className="relative">
-          {activity.coverImage && (
-            <img src={activity.coverImage} alt={activity.title} className="w-full h-48 object-cover rounded-t-xl" />
-          )}
-          <button onClick={onClose} className="absolute top-3 right-3 w-8 h-8 rounded-full bg-primary/50 text-white flex items-center justify-center hover:bg-primary/70">
+        {/* Header close button */}
+        <div className="relative flex justify-end p-3">
+          <button onClick={onClose} className="w-8 h-8 rounded-full bg-muted text-muted-foreground flex items-center justify-center hover:bg-muted/80">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -30,13 +32,15 @@ const ActivityDetailModal = ({ activity, onClose }: Props) => {
           </div>
 
           {activity.address && (
-            isUrl ? (
-              <a href={activity.address} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-secondary hover:underline">
-                查看地圖 <ExternalLink className="h-3 w-3" />
-              </a>
-            ) : (
-              <p className="text-sm text-muted-foreground">{activity.address}</p>
-            )
+            <div className="flex items-start gap-2">
+              <p className="text-sm text-muted-foreground flex-1">{activity.address}</p>
+              {mapsHref && (
+                <a href={mapsHref} target="_blank" rel="noopener noreferrer"
+                   className="shrink-0 flex items-center gap-1 text-xs text-secondary hover:underline">
+                  地圖 <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </div>
           )}
 
           {activity.notes && (
@@ -89,22 +93,6 @@ const ActivityDetailModal = ({ activity, onClose }: Props) => {
             </div>
           </div>
 
-          {/* Receipts */}
-          {activity.receipts && activity.receipts.length > 0 && (
-            <>
-              <hr className="border-border" />
-              <div>
-                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-2">收據附件</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {activity.receipts.map((receipt, idx) => (
-                    <a key={idx} href={receipt} target="_blank" rel="noopener noreferrer">
-                      <img src={receipt} alt={`收據 ${idx + 1}`} className="w-full h-20 object-cover rounded-lg border border-border hover:opacity-80 transition-opacity" />
-                    </a>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
         </div>
       </div>
     </div>
