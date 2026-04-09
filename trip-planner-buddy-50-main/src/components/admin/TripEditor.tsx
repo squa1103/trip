@@ -456,7 +456,21 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
             <input type="date" value={hotel.checkIn} onChange={(e) => updateHotel(hotel.id, 'checkIn', e.target.value)} className="px-2 py-1.5 rounded border bg-background text-foreground text-sm outline-none" />
             <input type="date" value={hotel.checkOut} onChange={(e) => updateHotel(hotel.id, 'checkOut', e.target.value)} className="px-2 py-1.5 rounded border bg-background text-foreground text-sm outline-none" />
             <div className="flex gap-2 min-w-0">
-              <input value={hotel.address} onChange={(e) => updateHotel(hotel.id, 'address', e.target.value)} placeholder="Google Map URL" className="flex-1 min-w-0 px-2 py-1.5 rounded border bg-background text-foreground text-sm outline-none overflow-hidden" onWheel={(e) => { e.currentTarget.scrollLeft += e.deltaY; e.preventDefault(); }} />
+              {mapsReady ? (
+                <PlacesAutocomplete
+                  initialValue={hotel.address}
+                  onPlaceSelect={(data) => updateHotel(hotel.id, 'address', data.address)}
+                  onBlur={(value) => updateHotel(hotel.id, 'address', value)}
+                  className="flex-1 min-w-0"
+                />
+              ) : (
+                <input
+                  value={hotel.address}
+                  onChange={(e) => updateHotel(hotel.id, 'address', e.target.value)}
+                  placeholder="輸入地址（Maps API 未載入）"
+                  className="flex-1 min-w-0 px-2 py-1.5 rounded border bg-background text-foreground text-sm outline-none overflow-hidden"
+                />
+              )}
               <button onClick={() => update('hotels', trip.hotels.filter((h) => h.id !== hotel.id))} className="text-destructive shrink-0">
                 <Trash2 className="h-4 w-4" />
               </button>

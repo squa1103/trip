@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Plus, Plane, Hotel, Luggage, ShoppingCart, Users, Receipt, X, ExternalLink, Check, Clock, Trash2, Image, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Plus, Plane, Hotel, Luggage, ShoppingCart, Users, Receipt, X, ExternalLink, Check, Clock, Trash2, Image, ChevronRight, MapPin } from 'lucide-react';
 import { Trip, ActivityCard as ActivityCardType, TodoItem, LuggageCategory, ShoppingItem } from '@/types/trip';
 import Header from '@/components/Header';
 import ActivityDetailModal from '@/components/trip/ActivityDetailModal';
@@ -180,15 +180,20 @@ const TripDetail = () => {
 
   const renderAddress = (address: string) => {
     if (!address) return null;
-    const isUrl = address.startsWith('http');
-    if (isUrl) {
-      return (
-        <a href={address} target="_blank" rel="noopener noreferrer" className="text-xs text-secondary hover:underline flex items-center gap-1 truncate">
-          查看地圖 <ExternalLink className="h-3 w-3 shrink-0" />
-        </a>
-      );
-    }
-    return <p className="text-xs text-muted-foreground truncate">{address}</p>;
+    const href = address.startsWith('http')
+      ? address
+      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(e) => e.stopPropagation()}
+        className="inline-flex items-center gap-1 mt-1.5 px-2.5 py-1.5 rounded-md bg-secondary/10 text-secondary text-xs font-medium hover:bg-secondary/20 active:bg-secondary/30 transition-colors"
+      >
+        <MapPin className="h-3 w-3 shrink-0" /> 前往地圖
+      </a>
+    );
   };
 
   return (
@@ -434,13 +439,18 @@ const TripDetail = () => {
                     <p className="font-medium text-foreground text-sm">{hotel.name}</p>
                     <p className="text-xs text-muted-foreground mt-1">{hotel.checkIn} ~ {hotel.checkOut}</p>
                     {hotel.address && (
-                      hotel.address.startsWith('http') ? (
-                        <a href={hotel.address} target="_blank" rel="noopener noreferrer" className="text-xs text-secondary hover:underline flex items-center gap-1 mt-1">
-                          查看地圖 <ExternalLink className="h-3 w-3" />
-                        </a>
-                      ) : (
-                        <p className="text-xs text-muted-foreground">{hotel.address}</p>
-                      )
+                      <a
+                        href={
+                          hotel.address.startsWith('http')
+                            ? hotel.address
+                            : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(hotel.address)}`
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 mt-1.5 px-2.5 py-1.5 rounded-md bg-secondary/10 text-secondary text-xs font-medium hover:bg-secondary/20 active:bg-secondary/30 transition-colors"
+                      >
+                        <MapPin className="h-3 w-3 shrink-0" /> 前往地圖
+                      </a>
                     )}
                   </div>
                 ))}

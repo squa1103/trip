@@ -11,6 +11,8 @@ export interface PlaceData {
 interface Props {
   initialValue?: string;
   onPlaceSelect: (data: PlaceData) => void;
+  /** Called when the input loses focus — lets parents persist typed-but-not-selected text. */
+  onBlur?: (value: string) => void;
   className?: string;
 }
 
@@ -27,7 +29,7 @@ interface Props {
  *  3. User clicks → PlacesService.getDetails() → onPlaceSelect()
  *  4. Session token refreshed after each completed selection (billing best-practice)
  */
-const PlacesAutocomplete = ({ initialValue, onPlaceSelect, className }: Props) => {
+const PlacesAutocomplete = ({ initialValue, onPlaceSelect, onBlur, className }: Props) => {
   const [inputValue, setInputValue]   = useState(initialValue ?? '');
   const [suggestions, setSuggestions] = useState<google.maps.places.AutocompletePrediction[]>([]);
   const [isOpen, setIsOpen]           = useState(false);
@@ -145,6 +147,7 @@ const PlacesAutocomplete = ({ initialValue, onPlaceSelect, className }: Props) =
           value={inputValue}
           onChange={handleInputChange}
           onFocus={() => suggestions.length > 0 && setIsOpen(true)}
+          onBlur={() => onBlur?.(inputValue)}
           placeholder="搜尋地點"
           autoComplete="off"
           className="w-full pl-7 pr-2 py-1.5 rounded border border-[#C4B09A] bg-[#D6C5B3]
