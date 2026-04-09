@@ -33,20 +33,20 @@ export const mockTrips: Trip[] = [
       {
         date: '2026-04-01',
         activities: [
-          { id: 'a1', title: '一蘭拉麵 新宿店', type: '美食', address: '東京都新宿區歌舞伎町1-22-7', notes: '必吃豚骨拉麵', price: 1200, payers: '小明', members: '小明, 小華, 小美', memberCount: 3, amountPerPerson: 400, settlementStatus: 'unsettled' },
+          { id: 'a1', title: '一蘭拉麵 新宿店', type: '美食', address: '東京都新宿區歌舞伎町1-22-7', notes: '必吃豚骨拉麵' },
         ],
       },
       {
         date: '2026-04-02',
         activities: [
-          { id: 'a2', title: '明治神宮', type: '景點', address: '東京都澀谷區代代木神園町1-1', notes: '<p>日本最著名的神社之一</p>', price: 0, payers: '', members: '', memberCount: 0, amountPerPerson: 0, settlementStatus: 'settled' },
-          { id: 'a3', title: '竹下通', type: '購物', address: '東京都澀谷區神宮前1', notes: '', price: 5000, payers: '小華', members: '小明, 小華', memberCount: 2, amountPerPerson: 2500, settlementStatus: 'unsettled' },
+          { id: 'a2', title: '明治神宮', type: '景點', address: '東京都澀谷區代代木神園町1-1', notes: '<p>日本最著名的神社之一</p>' },
+          { id: 'a3', title: '竹下通', type: '購物', address: '東京都澀谷區神宮前1', notes: '' },
         ],
       },
       {
         date: '2026-04-03',
         activities: [
-          { id: 'a4', title: '淺草寺', type: '景點', address: '東京都台東區淺草2-3-1', notes: '', price: 0, payers: '', members: '', memberCount: 0, amountPerPerson: 0, settlementStatus: 'settled' },
+          { id: 'a4', title: '淺草寺', type: '景點', address: '東京都台東區淺草2-3-1', notes: '' },
         ],
       },
     ],
@@ -73,7 +73,7 @@ export const mockTrips: Trip[] = [
     flights: { departure: { airline: '', flightNumber: '', departureTime: '', arrivalTime: '', departureAirport: '', arrivalAirport: '', checkedBaggage: 0, carryOnBaggage: 0 }, return: { airline: '', flightNumber: '', departureTime: '', arrivalTime: '', departureAirport: '', arrivalAirport: '', checkedBaggage: 0, carryOnBaggage: 0 } },
     hotels: [{ id: 'h3', name: '花蓮煙波大飯店', checkIn: '2026-03-15', checkOut: '2026-03-17', address: '花蓮縣花蓮市中美路142號', confirmationNumber: 'FL-001' }],
     dailyItineraries: [
-      { date: '2026-03-15', activities: [{ id: 'a5', title: '太魯閣國家公園', type: '景點', address: '花蓮縣秀林鄉富世291號', notes: '', price: 0, payers: '', members: '', memberCount: 0, amountPerPerson: 0, settlementStatus: 'settled' }] },
+      { date: '2026-03-15', activities: [{ id: 'a5', title: '太魯閣國家公園', type: '景點', address: '花蓮縣秀林鄉富世291號', notes: '' }] },
     ],
     luggageList: [],
     shoppingList: [],

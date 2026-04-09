@@ -259,12 +259,6 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
       type: '景點',
       address: '',
       notes: '',
-      price: 0,
-      payers: '',
-      members: '',
-      memberCount: 0,
-      amountPerPerson: 0,
-      settlementStatus: 'unsettled',
     };
     const updated = [...trip.dailyItineraries];
     updated[dayIndex] = { ...updated[dayIndex], activities: [...updated[dayIndex].activities, newActivity] };

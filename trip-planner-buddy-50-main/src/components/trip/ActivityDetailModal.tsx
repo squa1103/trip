@@ -50,49 +50,6 @@ const ActivityDetailModal = ({ activity, onClose }: Props) => {
             </>
           )}
 
-          <hr className="border-border" />
-
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">價格</span>
-              <span className="font-medium text-foreground">¥{activity.price.toLocaleString()}</span>
-            </div>
-            {activity.payers && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">付款人</span>
-                <span className="text-foreground">{activity.payers}</span>
-              </div>
-            )}
-            {activity.memberCount > 0 && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">應付人數</span>
-                <span className="text-foreground">{activity.memberCount} 人</span>
-              </div>
-            )}
-            {activity.members && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">應付人員</span>
-                <span className="text-foreground" dangerouslySetInnerHTML={{ __html: activity.members }} />
-              </div>
-            )}
-            {activity.amountPerPerson > 0 && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">每人應付金額</span>
-                <span className="font-medium text-secondary">¥{activity.amountPerPerson.toLocaleString()}/人</span>
-              </div>
-            )}
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">結算狀態</span>
-              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                activity.settlementStatus === 'settled'
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-orange-100 text-orange-700'
-              }`}>
-                {activity.settlementStatus === 'settled' ? '已結清' : '未結清'}
-              </span>
-            </div>
-          </div>
-
         </div>
       </div>
     </div>

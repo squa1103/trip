@@ -73,12 +73,6 @@ export interface ActivityCard {
   /** WGS84 經度 */
   lng?: number;
   notes: string;
-  price: number;
-  payers: string;
-  members: string;
-  memberCount: number;
-  amountPerPerson: number;
-  settlementStatus: 'unsettled' | 'settled';
 }
 
 export interface LuggageCategory {
