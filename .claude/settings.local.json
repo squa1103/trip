@@ -4,7 +4,11 @@
       "Bash(npx tsc:*)",
       "Bash(dir \"C:\\\\Users\\\\hiiis\\\\trip\\\\trip-planner-buddy-50-main\")",
       "Bash(echo \"EXIT:$?\")",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(tasklist /fi \"imagename eq node.exe\" /fo list)",
+      "Bash(xargs grep:*)",
+      "Bash(grep -r \"pg_cron\\\\|pg_net\\\\|send-email\\\\|cron\" /c/Users/hiiis/trip/trip-planner-buddy-50-main/*.sql)",
+      "Bash(grep:*)"
     ]
   }
 }

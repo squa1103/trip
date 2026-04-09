@@ -1,3 +1,7 @@
 # Edge Function admin-auth: 不在閘道驗證 JWT，改由 function 內用 getUser(token) 驗證
 [functions.admin-auth]
 verify_jwt = false
+
+# Edge Function send-email: 由 pg_cron 觸發，無 JWT；改用 x-cron-secret 驗證
+[functions.send-email]
+verify_jwt = false

@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { Trip, LuggageCategory, ShoppingItem } from '@/types/trip';
+import { Trip, TodoItem, LuggageCategory, ShoppingItem } from '@/types/trip';
 
 // Database row shape (snake_case)
 export interface TripRow {
@@ -131,6 +131,50 @@ export async function updateTripLists(
 }
 
 export async function deleteTrip(id: string): Promise<void> {
+  console.log(`[deleteTrip] 清除 todos 孤兒列 tripId=${id}`);
+  await supabase.from('todos').delete().eq('trip_id', id);
+  console.log(`[deleteTrip] 刪除行程 tripId=${id}`);
   const { error } = await supabase.from('trips').delete().eq('id', id);
   if (error) throw error;
+}
+
+// ─── todos 資料表（Email 提醒用） ────────────────────────────────────────────
+
+/**
+ * 新增一筆 todo 至獨立 todos 資料表，供 Email 自動提醒後端查詢。
+ */
+export async function insertTodoRow(tripId: string, todo: TodoItem): Promise<void> {
+  if (!todo.remindTime) {
+    console.log(`[insertTodoRow] todoId=${todo.id} 無 remindTime，跳過`);
+    return;
+  }
+
+  const formattedTime = new Date(todo.remindTime).toISOString();
+  console.log(`[insertTodoRow] 寫入 todoId=${todo.id} tripId=${tripId} remindTime=${formattedTime}`);
+
+  const { error } = await supabase.from('todos').insert({
+    id: todo.id,
+    trip_id: tripId,
+    task_name: todo.text,
+    reminder_time: formattedTime,
+  });
+
+  if (error) {
+    console.error(`[insertTodoRow] 寫入失敗 todoId=${todo.id}:`, error);
+    throw error;
+  }
+  console.log(`[insertTodoRow] 成功 todoId=${todo.id}`);
+}
+
+/**
+ * 從 todos 資料表刪除一筆 todo（已完成或已移除）。
+ */
+export async function deleteTodoRow(todoId: string): Promise<void> {
+  console.log(`[deleteTodoRow] 刪除 todoId=${todoId}`);
+  const { error } = await supabase.from('todos').delete().eq('id', todoId);
+  if (error) {
+    console.error(`[deleteTodoRow] 刪除失敗 todoId=${todoId}:`, error);
+    throw error;
+  }
+  console.log(`[deleteTodoRow] 成功 todoId=${todoId}`);
 }

@@ -15,6 +15,7 @@ import {
 } from '@/lib/todoReminders';
 import { loadGoogleMapsApi } from '@/lib/googleMaps';
 import { supabase } from '@/lib/supabase';
+import { insertTodoRow, deleteTodoRow } from '@/lib/trips';
 import ItineraryMap, { type MapHandle, type RouteSegment } from '@/components/admin/ItineraryMap';
 import PlacesAutocomplete from '@/components/admin/PlacesAutocomplete';
 import type { PlaceData } from '@/components/admin/PlacesAutocomplete';
@@ -181,6 +182,18 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
   const toggleTodo = (todoId: string) => {
     const next = trip.todos.map((t) => (t.id === todoId ? { ...t, checked: !t.checked } : t));
     update('todos', next);
+    if (!isNewTrip) {
+      const toggled = next.find((t) => t.id === todoId);
+      if (toggled?.checked) {
+        console.log(`[TripEditor] toggleTodo: 勾選完成，刪除提醒 todoId=${todoId}`);
+        void deleteTodoRow(todoId).catch((e) => console.error('[TripEditor] todos table delete failed', e));
+      } else if (toggled?.remindTime) {
+        console.log(`[TripEditor] toggleTodo: 取消勾選且有 remindTime，重新插入 todoId=${todoId}`);
+        void insertTodoRow(trip.id, toggled).catch((e) => console.error('[TripEditor] todos table insert failed', e));
+      } else {
+        console.log(`[TripEditor] toggleTodo: 取消勾選但無 remindTime，不寫 todos 表 todoId=${todoId}`);
+      }
+    }
   };
 
   const resetTodoForm = () => {
@@ -196,27 +209,34 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
       newTodoRemindOffsetMinutes
     );
 
-    const next = [
-      ...trip.todos,
-      {
-        id: crypto.randomUUID(),
-        text: newTodo.trim(),
-        checked: false,
-        dueAt,
-        remindTime,
-        remindOffset,
-      },
-    ];
+    const newTodoItem = {
+      id: crypto.randomUUID(),
+      text: newTodo.trim(),
+      checked: false,
+      dueAt,
+      remindTime,
+      remindOffset,
+    };
+    const next = [...trip.todos, newTodoItem];
     update('todos', next);
     resetTodoForm();
     setShowTodoInput(false);
+    console.log(`[TripEditor] addTodo: 新增 todo="${newTodoItem.text}" remindTime=${newTodoItem.remindTime ?? '無'}`);
+    if (!isNewTrip) {
+      void insertTodoRow(trip.id, newTodoItem).catch((e) => console.error('[TripEditor] todos table insert failed', e));
+    } else {
+      console.log('[TripEditor] addTodo: 新行程尚未儲存，跳過寫入 todos 表');
+    }
   };
 
   const removeTodo = (todoId: string) => {
-    update(
-      'todos',
-      trip.todos.filter((t) => t.id !== todoId)
-    );
+    update('todos', trip.todos.filter((t) => t.id !== todoId));
+    console.log(`[TripEditor] removeTodo: 刪除 todoId=${todoId}`);
+    if (!isNewTrip) {
+      void deleteTodoRow(todoId).catch((e) => console.error('[TripEditor] todos table delete failed', e));
+    } else {
+      console.log('[TripEditor] removeTodo: 新行程尚未儲存，跳過刪除 todos 表');
+    }
   };
 
   const updateFlight = (direction: 'departure' | 'return', field: string, value: string | number) => {

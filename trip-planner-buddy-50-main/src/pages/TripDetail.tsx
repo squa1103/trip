@@ -10,7 +10,7 @@ import ShoppingModal from '@/components/trip/ShoppingModal';
 import ManageParticipants from '@/components/trip/ManageParticipants';
 import ExpenseLedgerModal from '@/components/trip/ExpenseLedgerModal';
 import TripWeatherSidebar from '@/components/trip/TripWeatherSidebar';
-import { fetchTripById, updateTrip, updateTripLists } from '@/lib/trips';
+import { fetchTripById, updateTrip, updateTripLists, insertTodoRow, deleteTodoRow } from '@/lib/trips';
 import { toast } from 'sonner';
 import {
   buildTodoDateTimeFields,
@@ -127,6 +127,16 @@ const TripDetail = () => {
     const next = todos.map((t) => (t.id === todoId ? { ...t, checked: !t.checked } : t));
     setTodos(next);
     mutation.mutate({ ...trip, todos: next });
+    const toggled = next.find((t) => t.id === todoId);
+    if (toggled?.checked) {
+      console.log(`[TripDetail] toggleTodo: 勾選完成，刪除提醒 todoId=${todoId}`);
+      void deleteTodoRow(todoId).catch((e) => console.error('[TripDetail] todos table delete failed', e));
+    } else if (toggled?.remindTime) {
+      console.log(`[TripDetail] toggleTodo: 取消勾選且有 remindTime，重新插入 todoId=${todoId}`);
+      void insertTodoRow(trip.id, toggled).catch((e) => console.error('[TripDetail] todos table insert failed', e));
+    } else {
+      console.log(`[TripDetail] toggleTodo: 取消勾選但無 remindTime，不寫 todos 表 todoId=${todoId}`);
+    }
   };
 
   const resetTodoForm = () => {
@@ -141,27 +151,29 @@ const TripDetail = () => {
       newTodoDueAt,
       newTodoRemindOffsetMinutes
     );
-    const next = [
-      ...todos,
-      {
-        id: crypto.randomUUID(),
-        text: newTodo.trim(),
-        checked: false,
-        dueAt,
-        remindTime,
-        remindOffset,
-      },
-    ];
+    const newTodoItem = {
+      id: crypto.randomUUID(),
+      text: newTodo.trim(),
+      checked: false,
+      dueAt,
+      remindTime,
+      remindOffset,
+    };
+    const next = [...todos, newTodoItem];
     setTodos(next);
     resetTodoForm();
     setShowTodoInput(false);
     mutation.mutate({ ...trip, todos: next });
+    console.log(`[TripDetail] addTodo: 新增 todo="${newTodoItem.text}" remindTime=${newTodoItem.remindTime ?? '無'}`);
+    void insertTodoRow(trip.id, newTodoItem).catch((e) => console.error('[TripDetail] todos table insert failed', e));
   };
 
   const removeTodo = (todoId: string) => {
     const next = todos.filter((t) => t.id !== todoId);
     setTodos(next);
     mutation.mutate({ ...trip, todos: next });
+    console.log(`[TripDetail] removeTodo: 刪除 todoId=${todoId}`);
+    void deleteTodoRow(todoId).catch((e) => console.error('[TripDetail] todos table delete failed', e));
   };
 
   const handleLuggageUpdate = (next: LuggageCategory[]) => {
