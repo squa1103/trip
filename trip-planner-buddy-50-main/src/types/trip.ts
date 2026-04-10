@@ -27,6 +27,8 @@ export interface TodoItem {
   remindTime?: string | null;
   /** minutes; 例如 60 表示「1小時前」提醒；未設定則為 null */
   remindOffset?: number | null;
+  /** 指派的參與者 ID，關聯 trip_participants(id)；有值時提醒信寄給該成員 */
+  assignedParticipantId?: string | null;
 }
 
 export interface FlightInfo {

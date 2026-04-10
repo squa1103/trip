@@ -157,6 +157,7 @@ export async function insertTodoRow(tripId: string, todo: TodoItem): Promise<voi
     trip_id: tripId,
     task_name: todo.text,
     reminder_time: formattedTime,
+    ...(todo.assignedParticipantId ? { assigned_participant_id: todo.assignedParticipantId } : {}),
   });
 
   if (error) {

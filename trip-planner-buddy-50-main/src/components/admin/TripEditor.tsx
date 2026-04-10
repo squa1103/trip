@@ -16,6 +16,8 @@ import {
 import { loadGoogleMapsApi } from '@/lib/googleMaps';
 import { supabase } from '@/lib/supabase';
 import { insertTodoRow, deleteTodoRow } from '@/lib/trips';
+import { getTripParticipants } from '@/lib/expenses';
+import type { TripParticipant } from '@/types/expense';
 import ItineraryMap, { type MapHandle, type RouteSegment } from '@/components/admin/ItineraryMap';
 import PlacesAutocomplete from '@/components/admin/PlacesAutocomplete';
 import type { PlaceData } from '@/components/admin/PlacesAutocomplete';
@@ -51,6 +53,8 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
   const [newTodo, setNewTodo] = useState('');
   const [newTodoDueAt, setNewTodoDueAt] = useState('');
   const [newTodoRemindOffsetMinutes, setNewTodoRemindOffsetMinutes] = useState<number>(NO_REMINDER_MINUTES);
+  const [newTodoParticipantId, setNewTodoParticipantId] = useState('');
+  const [participants, setParticipants] = useState<TripParticipant[]>([]);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [activeDayIdx, setActiveDayIdx] = useState(0);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
@@ -85,6 +89,12 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
     const id = window.setInterval(() => setNowMs(Date.now()), 60_000);
     return () => window.clearInterval(id);
   }, []);
+
+  // Fetch trip participants for todo assignee selector
+  useEffect(() => {
+    if (isNewTrip) return;
+    getTripParticipants(trip.id).then(setParticipants).catch(() => {});
+  }, [trip.id, isNewTrip]);
 
   // Load Google Maps API once on mount
   useEffect(() => {
@@ -200,6 +210,7 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
     setNewTodo('');
     setNewTodoDueAt('');
     setNewTodoRemindOffsetMinutes(NO_REMINDER_MINUTES);
+    setNewTodoParticipantId('');
   };
 
   const addTodo = () => {
@@ -216,6 +227,7 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
       dueAt,
       remindTime,
       remindOffset,
+      assignedParticipantId: newTodoParticipantId || null,
     };
     const next = [...trip.todos, newTodoItem];
     update('todos', next);
@@ -810,6 +822,15 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
                     <span>提醒：{formatDateTimeZhTw(todo.remindTime)}</span>
                   </div>
                 )}
+                {todo.assignedParticipantId && (() => {
+                  const p = participants.find((x) => x.id === todo.assignedParticipantId);
+                  return p ? (
+                    <div className={`text-xs mt-1 ${todo.checked ? 'text-muted-foreground/70' : 'text-secondary'} flex items-center gap-1`}>
+                      <Users className="h-3 w-3 shrink-0" />
+                      <span>{p.displayName}</span>
+                    </div>
+                  ) : null;
+                })()}
               </button>
               <button
                 type="button"
@@ -860,6 +881,20 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
                   ))}
                 </select>
               ) : null}
+
+              <select
+                value={newTodoParticipantId}
+                onChange={(e) => setNewTodoParticipantId(e.target.value)}
+                aria-label="指派成員"
+                className="w-full sm:w-auto text-sm px-3 py-1.5 rounded-md border bg-background text-foreground outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="">不指派</option>
+                {participants.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.displayName}
+                  </option>
+                ))}
+              </select>
 
               <button
                 type="button"

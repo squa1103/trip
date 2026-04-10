@@ -3,6 +3,7 @@ export interface TripParticipant {
   id: string;
   tripId: string;
   displayName: string;
+  email: string | null;
   userId: string | null;
   createdAt?: string;
 }

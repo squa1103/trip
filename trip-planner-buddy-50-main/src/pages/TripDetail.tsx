@@ -11,6 +11,8 @@ import ManageParticipants from '@/components/trip/ManageParticipants';
 import ExpenseLedgerModal from '@/components/trip/ExpenseLedgerModal';
 import TripWeatherSidebar from '@/components/trip/TripWeatherSidebar';
 import { fetchTripById, updateTrip, updateTripLists, insertTodoRow, deleteTodoRow } from '@/lib/trips';
+import { getTripParticipants } from '@/lib/expenses';
+import type { TripParticipant } from '@/types/expense';
 import { toast } from 'sonner';
 import {
   buildTodoDateTimeFields,
@@ -27,6 +29,12 @@ const TripDetail = () => {
   const { data: trip, isLoading, isError } = useQuery({
     queryKey: ['trip', id],
     queryFn: () => fetchTripById(id!),
+    enabled: !!id,
+  });
+
+  const { data: participants = [] } = useQuery<TripParticipant[]>({
+    queryKey: ['participants', id],
+    queryFn: () => getTripParticipants(id!),
     enabled: !!id,
   });
 
@@ -67,6 +75,7 @@ const TripDetail = () => {
   const [newTodoDueAt, setNewTodoDueAt] = useState('');
   const [newTodoRemindOffsetMinutes, setNewTodoRemindOffsetMinutes] = useState<number>(NO_REMINDER_MINUTES);
   const [showTodoInput, setShowTodoInput] = useState(false);
+  const [newTodoParticipantId, setNewTodoParticipantId] = useState('');
   const [isTodoExpanded, setIsTodoExpanded] = useState(() => window.matchMedia('(min-width: 768px)').matches);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
@@ -143,6 +152,7 @@ const TripDetail = () => {
     setNewTodo('');
     setNewTodoDueAt('');
     setNewTodoRemindOffsetMinutes(NO_REMINDER_MINUTES);
+    setNewTodoParticipantId('');
   };
 
   const addTodo = () => {
@@ -158,6 +168,7 @@ const TripDetail = () => {
       dueAt,
       remindTime,
       remindOffset,
+      assignedParticipantId: newTodoParticipantId || null,
     };
     const next = [...todos, newTodoItem];
     setTodos(next);
@@ -327,6 +338,15 @@ const TripDetail = () => {
                             <span>提醒：{formatDateTimeZhTw(todo.remindTime)}</span>
                           </span>
                         )}
+                        {todo.assignedParticipantId && (() => {
+                          const p = participants.find((x) => x.id === todo.assignedParticipantId);
+                          return p ? (
+                            <span className={`text-xs mt-0.5 ${todo.checked ? 'text-muted-foreground/70' : 'text-secondary'} flex items-center gap-1`}>
+                              <Users className="h-3 w-3 shrink-0" />
+                              <span>{p.displayName}</span>
+                            </span>
+                          ) : null;
+                        })()}
                       </button>
                       <button
                         type="button"
@@ -374,6 +394,19 @@ const TripDetail = () => {
                       ))}
                     </select>
                   ) : null}
+                  <select
+                    value={newTodoParticipantId}
+                    onChange={(e) => setNewTodoParticipantId(e.target.value)}
+                    aria-label="指派成員"
+                    className="w-full sm:w-auto text-sm px-3 py-1.5 rounded-md border bg-background text-foreground outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="">不指派</option>
+                    {participants.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.displayName}
+                      </option>
+                    ))}
+                  </select>
                   <button
                     onClick={addTodo}
                     className="w-full sm:w-auto px-3 py-1.5 text-sm rounded-md bg-action text-action-foreground hover:bg-action/90"

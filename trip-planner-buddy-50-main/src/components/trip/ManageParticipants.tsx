@@ -53,6 +53,7 @@ interface Props {
 const ManageParticipants = ({ tripId, open, onOpenChange }: Props) => {
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [deleteBusyId, setDeleteBusyId] = useState<string | null>(null);
   const [blockDeleteOpen, setBlockDeleteOpen] = useState(false);
 
@@ -63,10 +64,12 @@ const ManageParticipants = ({ tripId, open, onOpenChange }: Props) => {
   });
 
   const addMutation = useMutation({
-    mutationFn: (displayName: string) => addTripParticipant(tripId, displayName),
+    mutationFn: ({ displayName, email }: { displayName: string; email: string }) =>
+      addTripParticipant(tripId, displayName, email),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['trip-participants', tripId] });
       setName('');
+      setEmail('');
       toast.success('已新增行程成員');
     },
     onError: (e: Error) => {
@@ -77,7 +80,7 @@ const ManageParticipants = ({ tripId, open, onOpenChange }: Props) => {
   const handleAdd = () => {
     const trimmed = name.trim();
     if (!trimmed) return;
-    addMutation.mutate(trimmed);
+    addMutation.mutate({ displayName: trimmed, email: email.trim() });
   };
 
   const handleDeleteClick = async (participantId: string) => {
@@ -115,30 +118,40 @@ const ManageParticipants = ({ tripId, open, onOpenChange }: Props) => {
           </DialogHeader>
 
           <div className="space-y-4 py-1">
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2">
+              <div className="flex gap-2">
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="輸入成員名稱"
+                  disabled={addMutation.isPending}
+                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAdd())}
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  onClick={handleAdd}
+                  disabled={addMutation.isPending || !name.trim()}
+                  className="shrink-0"
+                >
+                  {addMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <UserPlus className="h-4 w-4" />
+                      新增
+                    </>
+                  )}
+                </Button>
+              </div>
               <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="輸入成員名稱"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Email（選填，供提醒通知用）"
                 disabled={addMutation.isPending}
                 onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAdd())}
-                className="flex-1"
               />
-              <Button
-                type="button"
-                onClick={handleAdd}
-                disabled={addMutation.isPending || !name.trim()}
-                className="shrink-0"
-              >
-                {addMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <>
-                    <UserPlus className="h-4 w-4" />
-                    新增
-                  </>
-                )}
-              </Button>
             </div>
 
             <div className="rounded-md border border-border bg-muted/30">
@@ -161,7 +174,12 @@ const ManageParticipants = ({ tripId, open, onOpenChange }: Props) => {
                         key={p.id}
                         className="flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-sm text-foreground bg-background/80 border border-border/60"
                       >
-                        <span className="truncate min-w-0">{p.displayName}</span>
+                        <div className="truncate min-w-0">
+                          <span>{p.displayName}</span>
+                          {p.email && (
+                            <span className="block text-xs text-muted-foreground truncate">{p.email}</span>
+                          )}
+                        </div>
                         <Button
                           type="button"
                           variant="ghost"

@@ -1,7 +1,7 @@
-import { Resend } from 'npm:resend'
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
-const resend = new Resend(Deno.env.get('RESEND_API_KEY'))
+const BREVO_API_KEY = Deno.env.get('BREVO_API_KEY')!
+const BREVO_SENDER_EMAIL = Deno.env.get('BREVO_SENDER_EMAIL')!
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
     //    重試模式：只撈曾失敗的（retry_count > 0 且 < MAX_RETRIES）
     let query = supabase
       .from('todos')
-      .select(`*, trips ( title )`)
+      .select(`*, trips ( title ), trip_participants ( display_name, email )`)
       .lte('reminder_time', triggeredAt)
       .eq('is_notified', false)
 
@@ -83,13 +83,43 @@ Deno.serve(async (req) => {
         `[send-email] 處理 todo ${todo.id} | retry_count=${currentRetry} | task="${todo.task_name}" | trip="${tripTitle}"`
       )
 
-      // 2. 發送 Email
-      const { error: emailError } = await resend.emails.send({
-        from: 'Todo App <onboarding@resend.dev>',
-        to: ['wind7664891103@gmail.com'],
-        subject: `【提醒】${tripTitle} 的待辦：${todo.task_name}`,
-        html: `<strong>時間到囉！</strong><br>您在行程「<strong>${tripTitle}</strong>」中設定的待辦事項「<strong>${todo.task_name}</strong>」已經到期了，請趕快去處理吧！`,
-      })
+      // 2. 解析收件人 email：直接從 trip_participants.email 取得
+      const FALLBACK_EMAIL = 'wind7664891103@gmail.com'
+      const participant = todo.trip_participants
+      const recipientEmail = participant?.email || FALLBACK_EMAIL
+
+      if (participant?.email) {
+        console.log(`[send-email] 收件人: ${participant.display_name} <${recipientEmail}>`)
+      } else {
+        console.log(`[send-email] todo ${todo.id} 無指派參與者或無 email，使用預設 email`)
+      }
+
+      // 3. 發送 Email（Brevo API）
+      const subject = `【提醒】${tripTitle} 的待辦：${todo.task_name}`
+      const htmlContent = `<strong>時間到囉！</strong><br>您在行程「<strong>${tripTitle}</strong>」中設定的待辦事項「<strong>${todo.task_name}</strong>」已經到期了，請趕快去處理吧！`
+
+      let emailError: { message: string } | null = null
+      try {
+        const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: {
+            'api-key': BREVO_API_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            sender: { name: 'Todo App', email: BREVO_SENDER_EMAIL },
+            to: [{ email: recipientEmail }],
+            subject,
+            htmlContent,
+          }),
+        })
+        if (!brevoRes.ok) {
+          const errBody = await brevoRes.text()
+          emailError = { message: `Brevo ${brevoRes.status}: ${errBody}` }
+        }
+      } catch (e) {
+        emailError = { message: e.message ?? String(e) }
+      }
 
       if (emailError) {
         const newCount = currentRetry + 1
@@ -116,7 +146,7 @@ Deno.serve(async (req) => {
         continue
       }
 
-      // 3. 發信成功
+      // 4. 發信成功
       console.log(`[send-email] 發信成功 todo ${todo.id}，更新 is_notified=true`)
       const { error: updateError } = await supabase
         .from('todos')

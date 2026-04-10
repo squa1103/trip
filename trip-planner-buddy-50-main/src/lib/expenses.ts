@@ -14,6 +14,7 @@ export interface TripParticipantRow {
   id: string;
   trip_id: string;
   display_name: string;
+  email: string | null;
   user_id: string | null;
   created_at?: string;
 }
@@ -62,6 +63,7 @@ export function rowToTripParticipant(row: TripParticipantRow): TripParticipant {
     id: row.id,
     tripId: row.trip_id,
     displayName: row.display_name,
+    email: row.email ?? null,
     userId: row.user_id,
     createdAt: row.created_at,
   };
@@ -97,6 +99,7 @@ export function tripParticipantToRow(p: TripParticipant): Omit<TripParticipantRo
     id: p.id,
     trip_id: p.tripId,
     display_name: p.displayName,
+    email: p.email,
     user_id: p.userId,
   };
 }
@@ -170,12 +173,12 @@ export async function getTripParticipants(tripId: string): Promise<TripParticipa
   return (data as TripParticipantRow[]).map(rowToTripParticipant);
 }
 
-export async function addTripParticipant(tripId: string, name: string): Promise<TripParticipant> {
+export async function addTripParticipant(tripId: string, name: string, email?: string): Promise<TripParticipant> {
   const trimmed = name.trim();
   if (!trimmed) throw new Error('成員名稱不可為空白');
   const { data, error } = await supabase
     .from('trip_participants')
-    .insert({ trip_id: tripId, display_name: trimmed })
+    .insert({ trip_id: tripId, display_name: trimmed, email: email?.trim() || null })
     .select()
     .single();
   if (error) throw error;
