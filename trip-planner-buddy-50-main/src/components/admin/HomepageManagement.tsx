@@ -75,17 +75,24 @@ const HomepageManagement = () => {
         .in('key', ['carousel_slides', 'intro_video', 'site_logo', 'site_name']);
       if (error || hasUserInteractedRef.current) return;
       for (const row of data ?? []) {
-        if (row.key === 'carousel_slides' && Array.isArray(row.value) && row.value.length > 0) {
-          setSlides(row.value as Slide[]);
+        // value 欄位可能是 jsonb（直接回傳物件）或 text（回傳 JSON 字串），統一處理
+        let val: unknown = row.value;
+        if (row.key === 'carousel_slides' && typeof val === 'string') {
+          try { val = JSON.parse(val); } catch { /* not JSON */ }
         }
-        if (row.key === 'intro_video' && typeof row.value === 'string' && row.value) {
-          setVideoUrl(row.value);
+        if (row.key === 'carousel_slides' && Array.isArray(val) && val.length > 0) {
+          setSlides(val as Slide[]);
         }
-        if (row.key === 'site_logo' && typeof row.value === 'string' && row.value) {
-          setLogoPreview(row.value);
+        // intro_video / site_logo / site_name 是純字串，jsonb 會回傳帶引號的字串需去掉
+        const strVal = typeof row.value === 'string' ? row.value.replace(/^"|"$/g, '') : String(row.value ?? '');
+        if (row.key === 'intro_video' && strVal) {
+          setVideoUrl(strVal);
         }
-        if (row.key === 'site_name' && typeof row.value === 'string' && row.value) {
-          setSiteName(row.value);
+        if (row.key === 'site_logo' && strVal) {
+          setLogoPreview(strVal);
+        }
+        if (row.key === 'site_name' && strVal) {
+          setSiteName(strVal);
         }
       }
       const hasLogoInRows = data?.some((r) => r.key === 'site_logo' && r.value);
@@ -295,6 +302,12 @@ const HomepageManagement = () => {
       if (nameTrimmed) localStorage.setItem(SITE_NAME_STORAGE_KEY, nameTrimmed);
       else localStorage.removeItem(SITE_NAME_STORAGE_KEY);
       window.dispatchEvent(new CustomEvent('siteNameUpdated', { detail: { name: nameTrimmed } }));
+
+      // 清除首頁輪播的 sessionStorage 快取，避免回到首頁仍顯示舊圖
+      try {
+        sessionStorage.removeItem('rq:carousel-slides');
+        sessionStorage.removeItem('rq:carousel-slides:ts');
+      } catch { /* ignore */ }
 
       window.dispatchEvent(new Event('carouselUpdated'));
       setHasUnsavedChanges(false);

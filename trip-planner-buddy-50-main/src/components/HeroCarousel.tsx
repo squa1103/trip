@@ -54,8 +54,14 @@ async function fetchCarouselSlides(): Promise<Slide[]> {
     console.warn('[HeroCarousel] Supabase query failed:', error.message);
   }
 
-  if (!error && data?.value && Array.isArray(data.value) && data.value.length > 0) {
-    const sanitized = sanitizeCarouselSlides(data.value);
+  // value 欄位可能是 jsonb（直接回傳陣列）或 text（回傳 JSON 字串），都需處理
+  let parsed: unknown = data?.value;
+  if (typeof parsed === 'string') {
+    try { parsed = JSON.parse(parsed); } catch { /* not JSON */ }
+  }
+
+  if (!error && parsed && Array.isArray(parsed) && parsed.length > 0) {
+    const sanitized = sanitizeCarouselSlides(parsed);
     if (sanitized.length > 0) {
       try {
         sessionStorage.setItem(CACHE_KEY, JSON.stringify(sanitized));
@@ -105,7 +111,13 @@ const HeroCarousel = () => {
   }, [slides]);
 
   useEffect(() => {
-    const handleUpdate = () => queryClient.invalidateQueries({ queryKey: ['carousel-slides'] });
+    const handleUpdate = () => {
+      try {
+        sessionStorage.removeItem(CACHE_KEY);
+        sessionStorage.removeItem(CACHE_TS_KEY);
+      } catch { /* ignore */ }
+      queryClient.invalidateQueries({ queryKey: ['carousel-slides'] });
+    };
     window.addEventListener('carouselUpdated', handleUpdate);
     return () => window.removeEventListener('carouselUpdated', handleUpdate);
   }, [queryClient]);
