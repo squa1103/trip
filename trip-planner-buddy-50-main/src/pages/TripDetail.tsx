@@ -546,6 +546,9 @@ const TripDetail = () => {
                           className="w-full min-w-0 text-left bg-muted/50 rounded-lg overflow-hidden hover:shadow-md transition-shadow group"
                         >
                           <div className="p-3 min-w-0">
+                            {activity.time && (
+                              <p className="text-xs tabular-nums text-muted-foreground mb-0.5">{activity.time}</p>
+                            )}
                             <p className="font-medium text-foreground text-sm truncate">{activity.title}</p>
                             <span className="inline-block max-w-full truncate mt-1 px-2 py-0.5 bg-secondary/20 text-secondary text-xs rounded-full">{activity.type}</span>
                             <div className="mt-1 min-w-0">{renderAddress(activity.address)}</div>
