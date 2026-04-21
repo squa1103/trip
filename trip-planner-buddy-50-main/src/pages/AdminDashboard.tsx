@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Users, Home, MapPinned, LogOut, ExternalLink } from 'lucide-react';
 import AccountManagement from '@/components/admin/AccountManagement';
 import HomepageManagement from '@/components/admin/HomepageManagement';
@@ -9,6 +9,9 @@ import { useSiteDisplayTitle } from '@/hooks/useSiteDisplayTitle';
 
 type AdminPage = 'accounts' | 'homepage' | 'trips';
 
+const ADMIN_PAGES: readonly AdminPage[] = ['accounts', 'homepage', 'trips'] as const;
+const DEFAULT_PAGE: AdminPage = 'accounts';
+
 const menuItems: { key: AdminPage; label: string; icon: React.ElementType }[] = [
   { key: 'accounts', label: '帳號管理', icon: Users },
   { key: 'homepage', label: '網站管理', icon: Home },
@@ -16,7 +19,15 @@ const menuItems: { key: AdminPage; label: string; icon: React.ElementType }[] = 
 ];
 
 const AdminDashboard = () => {
-  const [activePage, setActivePage] = useState<AdminPage>('accounts');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const activePage: AdminPage = (ADMIN_PAGES as readonly string[]).includes(tabParam ?? '')
+    ? (tabParam as AdminPage)
+    : DEFAULT_PAGE;
+  const setActivePage = (key: AdminPage) => {
+    // replace:true 讓切 tab 不塞滿瀏覽器歷史（back 鈕跳回上一頁而非上個 tab）
+    setSearchParams(key === DEFAULT_PAGE ? {} : { tab: key }, { replace: true });
+  };
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [checking, setChecking] = useState(true);
   const navigate = useNavigate();
