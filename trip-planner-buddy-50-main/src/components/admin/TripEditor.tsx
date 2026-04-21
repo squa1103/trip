@@ -680,13 +680,11 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
                         <span className={`text-xs w-5 shrink-0 text-center font-medium ${act.lat ? 'text-action' : 'text-muted-foreground'}`}>
                           {actIdx + 1}
                         </span>
-                        <input
-                          type="time"
-                          value={act.time ?? ''}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => { e.stopPropagation(); updateActivity(safeIdx, act.id, 'time', e.target.value); }}
-                          className="w-20 text-xs border rounded px-1 py-0.5 bg-background text-foreground outline-none shrink-0"
-                        />
+                        {act.time && (
+                          <span className="text-xs tabular-nums text-muted-foreground shrink-0">
+                            {act.time}
+                          </span>
+                        )}
                         <input
                           value={act.title}
                           onClick={(e) => e.stopPropagation()}
@@ -699,11 +697,20 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
 
                       {/* 展開內容 */}
                       {isExpanded && (
-                        <div className="px-3 pb-3 space-y-2 border-t border-border/50">
+                        <div className="px-3 pb-3 pt-2 space-y-2 border-t border-border/50">
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs text-muted-foreground shrink-0 w-10">時間</label>
+                            <input
+                              type="time"
+                              value={act.time ?? ''}
+                              onChange={(e) => updateActivity(safeIdx, act.id, 'time', e.target.value)}
+                              className="text-sm px-2 py-1 rounded border bg-background text-foreground outline-none"
+                            />
+                          </div>
                           <select
                             value={act.type}
                             onChange={(e) => updateActivity(safeIdx, act.id, 'type', e.target.value)}
-                            className="w-full mt-2 px-2 py-1 rounded border bg-background text-foreground text-sm"
+                            className="w-full px-2 py-1 rounded border bg-background text-foreground text-sm"
                           >
                             <option>景點</option><option>美食</option><option>購物</option><option>交通</option><option>其他</option>
                           </select>
