@@ -73,7 +73,7 @@ const Header = ({ trips = [] }: Props) => {
 
   return (
     <>
-      <header className="sticky top-0 z-30 bg-primary text-primary-foreground shadow-lg">
+      <header className="sticky top-0 z-30 bg-primary/70 backdrop-blur-[10px] text-primary-foreground shadow-lg border-b border-white/10 supports-[backdrop-filter]:bg-primary/60">
         <div className="w-full flex items-center justify-between h-16 px-4 md:px-8">
           <button onClick={() => navigate('/')} className="flex items-center mr-auto">
             {logoUrl ? (

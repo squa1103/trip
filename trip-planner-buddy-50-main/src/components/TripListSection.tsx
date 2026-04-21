@@ -92,33 +92,35 @@ const TripListSection = ({ trips, loading }: Props) => {
 
           {/* Right: Trip cards carousel */}
           <div className="flex-1 min-w-0">
-            {loading ? (
-              <div className="flex items-center justify-center h-40 text-muted-foreground">
-                <Loader2 className="h-6 w-6 animate-spin" />
-              </div>
-            ) : filtered.length === 0 ? (
-              <div className="flex items-center justify-center h-40 text-muted-foreground">
-                此分類尚無行程
-              </div>
-            ) : (
-              <div className="relative">
-                <div ref={scrollRef} className="flex gap-4 overflow-x-auto scrollbar-hide pb-4">
-                  {filtered.map((trip) => (
-                    <TripCard key={trip.id} trip={trip} />
-                  ))}
+            <div key={activeCategory} className="animate-fade-in">
+              {loading ? (
+                <div className="flex items-center justify-center h-40 text-muted-foreground">
+                  <Loader2 className="h-6 w-6 animate-spin" />
                 </div>
-                {filtered.length > 4 && (
-                  <>
-                    <button onClick={() => scroll(-1)} className="absolute -left-4 top-1/3 w-8 h-8 rounded-full bg-card shadow-md flex items-center justify-center hover:bg-muted transition-colors">
-                      <ChevronLeft className="h-4 w-4" />
-                    </button>
-                    <button onClick={() => scroll(1)} className="absolute -right-4 top-1/3 w-8 h-8 rounded-full bg-card shadow-md flex items-center justify-center hover:bg-muted transition-colors">
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
+              ) : filtered.length === 0 ? (
+                <div className="flex items-center justify-center h-40 text-muted-foreground">
+                  此分類尚無行程
+                </div>
+              ) : (
+                <div className="relative">
+                  <div ref={scrollRef} className="flex gap-4 overflow-x-auto scrollbar-hide pb-4">
+                    {filtered.map((trip) => (
+                      <TripCard key={trip.id} trip={trip} />
+                    ))}
+                  </div>
+                  {filtered.length > 4 && (
+                    <>
+                      <button onClick={() => scroll(-1)} className="absolute -left-4 top-1/3 w-8 h-8 rounded-full bg-card shadow-md flex items-center justify-center hover:bg-muted transition-colors">
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
+                      <button onClick={() => scroll(1)} className="absolute -right-4 top-1/3 w-8 h-8 rounded-full bg-card shadow-md flex items-center justify-center hover:bg-muted transition-colors">
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
