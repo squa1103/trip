@@ -42,6 +42,7 @@ export function rowToTrip(row: TripRow): Trip {
     shoppingList: row.shopping_list ?? [],
     otherNotes: row.other_notes ?? '',
     weatherCities: row.weather_cities ?? [],
+    createdAt: row.created_at,
   };
 }
 

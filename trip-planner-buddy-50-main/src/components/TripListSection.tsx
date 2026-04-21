@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { ChevronLeft, ChevronRight, ChevronDown, MapPin, Loader2 } from 'lucide-react';
 
 import TripCard from './TripCard';
+import QuickAccessPanel from './QuickAccessPanel';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Trip } from '@/types/trip';
 
@@ -51,15 +52,18 @@ const TripListSection = ({ trips, loading }: Props) => {
   return (
     <section className="pt-10 md:pt-14 pb-12 md:pb-16">
       <div className="container mx-auto px-4">
-        <div className="flex items-center gap-3 mb-8">
-          <div className="w-10 h-10 rounded-full bg-secondary/20 flex items-center justify-center">
-            <MapPin className="h-5 w-5 text-foreground" />
-          </div>
-          <h2 className="text-2xl md:text-3xl font-bold text-foreground">行程列表</h2>
-        </div>
-        <div className="flex flex-col md:flex-row gap-8">
-          {/* Left: Nested Categories */}
-          <div className="md:w-56 shrink-0 space-y-1">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:gap-8">
+          {/* Main: 75% width — category menu + trip cards */}
+          <div className="lg:col-span-3 min-w-0">
+            <div className="flex items-center gap-3 mb-8">
+              <div className="w-10 h-10 rounded-full bg-secondary/20 flex items-center justify-center">
+                <MapPin className="h-5 w-5 text-foreground" />
+              </div>
+              <h2 className="text-2xl md:text-3xl font-bold text-foreground">行程列表</h2>
+            </div>
+            <div className="flex flex-col md:flex-row gap-8">
+              {/* Left: Nested Categories */}
+              <div className="md:w-56 shrink-0 space-y-1">
             {categoryGroups.map((group) => {
               const isGroupActive = group.items.some((i) => i.key === activeCategory);
               return (
@@ -120,8 +124,15 @@ const TripListSection = ({ trips, loading }: Props) => {
                   )}
                 </div>
               )}
+                </div>
+              </div>
             </div>
           </div>
+
+          {/* Sidebar: 25% — Quick Access (stacks below main on mobile) */}
+          <aside className="lg:col-span-1">
+            <QuickAccessPanel trips={trips} loading={loading} />
+          </aside>
         </div>
       </div>
     </section>

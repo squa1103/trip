@@ -15,6 +15,8 @@ export interface Trip {
   otherNotes: string;
   /** 追蹤天氣的城市字串（建議格式：名稱, 國碼，如 Taipei, TW） */
   weatherCities: string[];
+  /** DB 建立時間（ISO string），僅讀取；寫回時由 Supabase 自動維護 */
+  createdAt?: string;
 }
 
 export interface TodoItem {
