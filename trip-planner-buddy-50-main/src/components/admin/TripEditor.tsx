@@ -15,7 +15,7 @@ import {
 } from '@/lib/todoReminders';
 import { loadGoogleMapsApi } from '@/lib/googleMaps';
 import { supabase } from '@/lib/supabase';
-import { insertTodoRow, deleteTodoRow } from '@/lib/trips';
+import { insertTodoRow, deleteTodoRow, patchTripTodos } from '@/lib/trips';
 import { getTripParticipants } from '@/lib/expenses';
 import type { TripParticipant } from '@/types/expense';
 import ItineraryMap, { type MapHandle, type RouteSegment } from '@/components/admin/ItineraryMap';
@@ -194,6 +194,10 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
     update('todos', next);
     if (!isNewTrip) {
       const toggled = next.find((t) => t.id === todoId);
+      // 即時寫回 DB，不等使用者按「儲存」；避免 editor 後續的 updateTrip 用舊快照覆寫
+      void patchTripTodos(trip.id, (fresh) =>
+        fresh.map((t) => (t.id === todoId ? { ...t, checked: toggled?.checked ?? !t.checked } : t)),
+      ).catch((e) => console.error('[TripEditor] patchTripTodos toggle failed', e));
       if (toggled?.checked) {
         console.log(`[TripEditor] toggleTodo: 勾選完成，刪除提醒 todoId=${todoId}`);
         void deleteTodoRow(todoId).catch((e) => console.error('[TripEditor] todos table delete failed', e));
@@ -235,6 +239,9 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
     setShowTodoInput(false);
     console.log(`[TripEditor] addTodo: 新增 todo="${newTodoItem.text}" remindTime=${newTodoItem.remindTime ?? '無'}`);
     if (!isNewTrip) {
+      // 即時寫回 DB（以 DB 最新 todos 為準 append），避免按「儲存」時被舊快照覆寫
+      void patchTripTodos(trip.id, (fresh) => [...fresh, newTodoItem])
+        .catch((e) => console.error('[TripEditor] patchTripTodos add failed', e));
       void insertTodoRow(trip.id, newTodoItem).catch((e) => console.error('[TripEditor] todos table insert failed', e));
     } else {
       console.log('[TripEditor] addTodo: 新行程尚未儲存，跳過寫入 todos 表');
@@ -245,6 +252,8 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
     update('todos', trip.todos.filter((t) => t.id !== todoId));
     console.log(`[TripEditor] removeTodo: 刪除 todoId=${todoId}`);
     if (!isNewTrip) {
+      void patchTripTodos(trip.id, (fresh) => fresh.filter((t) => t.id !== todoId))
+        .catch((e) => console.error('[TripEditor] patchTripTodos remove failed', e));
       void deleteTodoRow(todoId).catch((e) => console.error('[TripEditor] todos table delete failed', e));
     } else {
       console.log('[TripEditor] removeTodo: 新行程尚未儲存，跳過刪除 todos 表');

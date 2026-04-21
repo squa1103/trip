@@ -104,11 +104,19 @@ export async function createTrip(trip: Trip): Promise<Trip> {
   return rowToTrip(data as TripRow);
 }
 
+/**
+ * 更新整筆 trip，但**不寫入 `todos` 欄位**。
+ *
+ * todos 的所有變更（新增、刪除、勾選）都走 `patchTripTodos`，以 DB 端最新
+ * 的 todos 陣列為基礎做 read-modify-write，避免 TripEditor 拿舊快照儲存時
+ * 把後來新增的 todo 擠掉（已發生過：使用者收到提醒信後在網頁看不到該筆）。
+ */
 export async function updateTrip(trip: Trip): Promise<Trip> {
   const row = tripToRow(trip);
+  const { todos: _ignored, ...rowWithoutTodos } = row;
   const { data, error } = await supabase
     .from('trips')
-    .update(row)
+    .update(rowWithoutTodos)
     .eq('id', trip.id)
     .select()
     .single();
@@ -165,6 +173,34 @@ export async function insertTodoRow(tripId: string, todo: TodoItem): Promise<voi
     throw error;
   }
   console.log(`[insertTodoRow] 成功 todoId=${todo.id}`);
+}
+
+/**
+ * 原子更新 `trips.todos` JSONB：先從 DB 取最新 todos → 套 mutator → 寫回。
+ * 這是 todo 的唯一正確寫回路徑；避免拿前端舊快照整筆覆寫造成資料遺失。
+ * 回傳套用後的新陣列。
+ */
+export async function patchTripTodos(
+  tripId: string,
+  mutator: (todos: TodoItem[]) => TodoItem[],
+): Promise<TodoItem[]> {
+  const { data: fetched, error: fetchError } = await supabase
+    .from('trips')
+    .select('todos')
+    .eq('id', tripId)
+    .single();
+  if (fetchError) throw fetchError;
+
+  const fresh = (fetched?.todos ?? []) as TodoItem[];
+  const next = mutator(fresh);
+
+  const { error } = await supabase
+    .from('trips')
+    .update({ todos: next })
+    .eq('id', tripId);
+  if (error) throw error;
+
+  return next;
 }
 
 /**

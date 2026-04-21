@@ -10,7 +10,7 @@ import ShoppingModal from '@/components/trip/ShoppingModal';
 import ManageParticipants from '@/components/trip/ManageParticipants';
 import ExpenseLedgerModal from '@/components/trip/ExpenseLedgerModal';
 import TripWeatherSidebar from '@/components/trip/TripWeatherSidebar';
-import { fetchTripById, updateTrip, updateTripLists, insertTodoRow, deleteTodoRow } from '@/lib/trips';
+import { fetchTripById, updateTrip, updateTripLists, insertTodoRow, deleteTodoRow, patchTripTodos } from '@/lib/trips';
 import { getTripParticipants } from '@/lib/expenses';
 import type { TripParticipant } from '@/types/expense';
 import { toast } from 'sonner';
@@ -135,8 +135,15 @@ const TripDetail = () => {
   const toggleTodo = (todoId: string) => {
     const next = todos.map((t) => (t.id === todoId ? { ...t, checked: !t.checked } : t));
     setTodos(next);
-    mutation.mutate({ ...trip, todos: next });
     const toggled = next.find((t) => t.id === todoId);
+    patchTripTodos(trip.id, (fresh) =>
+      fresh.map((t) => (t.id === todoId ? { ...t, checked: toggled?.checked ?? !t.checked } : t)),
+    )
+      .then((merged) => {
+        queryClient.setQueryData<Trip>(['trip', id], (old) => (old ? { ...old, todos: merged } : old));
+        queryClient.invalidateQueries({ queryKey: ['trips'] });
+      })
+      .catch((e: Error) => toast.error(e.message || '待辦更新失敗'));
     if (toggled?.checked) {
       console.log(`[TripDetail] toggleTodo: 勾選完成，刪除提醒 todoId=${todoId}`);
       void deleteTodoRow(todoId).catch((e) => console.error('[TripDetail] todos table delete failed', e));
@@ -174,16 +181,26 @@ const TripDetail = () => {
     setTodos(next);
     resetTodoForm();
     setShowTodoInput(false);
-    mutation.mutate({ ...trip, todos: next });
     console.log(`[TripDetail] addTodo: 新增 todo="${newTodoItem.text}" remindTime=${newTodoItem.remindTime ?? '無'}`);
+    patchTripTodos(trip.id, (fresh) => [...fresh, newTodoItem])
+      .then((merged) => {
+        queryClient.setQueryData<Trip>(['trip', id], (old) => (old ? { ...old, todos: merged } : old));
+        queryClient.invalidateQueries({ queryKey: ['trips'] });
+      })
+      .catch((e: Error) => toast.error(e.message || '待辦新增失敗'));
     void insertTodoRow(trip.id, newTodoItem).catch((e) => console.error('[TripDetail] todos table insert failed', e));
   };
 
   const removeTodo = (todoId: string) => {
     const next = todos.filter((t) => t.id !== todoId);
     setTodos(next);
-    mutation.mutate({ ...trip, todos: next });
     console.log(`[TripDetail] removeTodo: 刪除 todoId=${todoId}`);
+    patchTripTodos(trip.id, (fresh) => fresh.filter((t) => t.id !== todoId))
+      .then((merged) => {
+        queryClient.setQueryData<Trip>(['trip', id], (old) => (old ? { ...old, todos: merged } : old));
+        queryClient.invalidateQueries({ queryKey: ['trips'] });
+      })
+      .catch((e: Error) => toast.error(e.message || '待辦刪除失敗'));
     void deleteTodoRow(todoId).catch((e) => console.error('[TripDetail] todos table delete failed', e));
   };
 
