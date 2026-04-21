@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, forwardRef, useImperativeHandle, memo } from 'react';
-import { ActivityCard } from '@/types/trip';
+import { ActivityCard, HotelInfo } from '@/types/trip';
 import { getDayColor } from '@/lib/dayColors';
+import { resolveHotelRoles } from '@/lib/hotels';
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -16,13 +17,25 @@ export interface RouteSegment {
 
 interface Props {
   activities: ActivityCard[];
+  /** 當日覆蓋且有座標的飯店（由父元件過濾好）。用來畫 H pin、決定路線起終點。 */
+  hotels?: HotelInfo[];
+  /** 當日 ISO 日期 (YYYY-MM-DD 即可)。用於 resolveHotelRoles 判斷 origin/destination。 */
+  dayDate?: string;
   showMarkers: boolean;
   dayIndex: number;
   activeActivityId?: string | null;
   onMarkerClick?: (activityId: string) => void;
-  /** Called after each route calculation with per-leg travel info.
-   *  Empty array = no route available (fallback or < 2 valid activities). */
-  onRouteSegments?: (segments: RouteSegment[]) => void;
+  /**
+   * Called after each route calculation.
+   *  - segmentsFromEachActivity[i] = 從 activity[i] 出發到下一點（下一個 activity 或 hotel destination）那段；
+   *    對齊 activities 陣列的 index；沒有就是 { duration:'', distance:'' }
+   *  - originSegment = 飯店 origin → 第一個 activity 那段（無 hotel origin 時為 null）
+   *  空 segments 陣列 + null origin = 無路線（fallback 或資料不足）
+   */
+  onRouteSegments?: (
+    segmentsFromEachActivity: RouteSegment[],
+    originSegment: RouteSegment | null,
+  ) => void;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -74,10 +87,26 @@ function makeIcon(color: string, isActive: boolean): google.maps.Symbol {
   };
 }
 
-function waypointKey(valid: ActivityCard[]): string {
-  return valid
-    .map((a) => `${(a.lat as number).toFixed(6)},${(a.lng as number).toFixed(6)}`)
-    .join('|');
+/** 方形 H pin — 與活動圓點區分；同日色；比活動略大讓 'H' label 清楚。 */
+function makeHotelIcon(color: string): google.maps.Symbol {
+  return {
+    path: 'M -9 -9 L 9 -9 L 9 9 L -9 9 Z',
+    fillColor: color,
+    fillOpacity: 1,
+    strokeColor: '#ffffff',
+    strokeWeight: 2,
+    scale: 1,
+    labelOrigin: new google.maps.Point(0, 0),
+  };
+}
+
+function waypointKey(
+  origin: { lat: number; lng: number },
+  dest: { lat: number; lng: number },
+  mids: Array<{ lat: number; lng: number }>,
+): string {
+  const fmt = (p: { lat: number; lng: number }) => `${p.lat.toFixed(6)},${p.lng.toFixed(6)}`;
+  return [fmt(origin), ...mids.map(fmt), fmt(dest)].join('|');
 }
 
 /** Concatenate all step paths across a leg → full road-aligned LatLng array. */
@@ -105,11 +134,12 @@ function drawFallbackPolylines(
 // ─── Component ───────────────────────────────────────────────────────────────
 
 const ItineraryMapInner = forwardRef<MapHandle, Props>(
-  ({ activities, showMarkers, dayIndex, activeActivityId, onMarkerClick, onRouteSegments }, ref) => {
+  ({ activities, hotels, dayDate, showMarkers, dayIndex, activeActivityId, onMarkerClick, onRouteSegments }, ref) => {
     const containerRef   = useRef<HTMLDivElement>(null);
     const mapRef         = useRef<google.maps.Map | null>(null);
     const markerMapRef   = useRef<Map<string, google.maps.Marker>>(new Map());
     const markerIndexRef = useRef<Map<string, number>>(new Map());
+    const hotelMarkerMapRef = useRef<Map<string, google.maps.Marker>>(new Map());
     /** Fallback straight-line layers (Directions API unavailable). */
     const polylineLayersRef  = useRef<google.maps.Polyline[]>([]);
     /** Gray background Polyline — full day route from all leg paths. */
@@ -122,6 +152,10 @@ const ItineraryMapInner = forwardRef<MapHandle, Props>(
     const routeCache         = useRef<Map<string, google.maps.DirectionsResult>>(new Map());
     const onRouteSegmentsRef = useRef(onRouteSegments);
     useEffect(() => { onRouteSegmentsRef.current = onRouteSegments; });
+    /** 本次繪製是否有 hotel origin；applyDirectionsResult 用來把第一 leg 切給 originSegment。 */
+    const hotelOriginOffsetRef = useRef<0 | 1>(0);
+    /** 本次繪製的 activity 數，用來把 legs 對齊到 segmentsFromEachActivity。 */
+    const activityCountRef = useRef<number>(0);
     /** Ref mirror of onMarkerClick — kept in sync so the marker listener never goes stale
      *  even when React.memo skips re-renders (and the prop function reference changes). */
     const onMarkerClickRef = useRef(onMarkerClick);
@@ -176,12 +210,22 @@ const ItineraryMapInner = forwardRef<MapHandle, Props>(
       // Update state → triggers the segment-highlight effect
       setDirResult(result);
 
-      // Emit per-leg travel info to parent
-      const segments: RouteSegment[] = (result.routes[0]?.legs ?? []).map((leg) => ({
-        duration: leg.duration?.text ?? '',
-        distance: leg.distance?.text ?? '',
-      }));
-      onRouteSegmentsRef.current?.(segments);
+      // Split legs into originSegment (hotel→first activity) and per-activity segments.
+      // routePoints = [origin hotel?, ...activities, destination hotel?]
+      // activity[i] 對應「從此站出發」的 leg index = i + offset
+      const allLegs = result.routes[0]?.legs ?? [];
+      const offset = hotelOriginOffsetRef.current;
+      const activityCount = activityCountRef.current;
+      const segmentsFromEachActivity: RouteSegment[] = Array.from({ length: activityCount }, (_, i) => {
+        const leg = allLegs[i + offset];
+        return leg
+          ? { duration: leg.duration?.text ?? '', distance: leg.distance?.text ?? '' }
+          : { duration: '', distance: '' };
+      });
+      const originSegment: RouteSegment | null = offset === 1 && allLegs[0]
+        ? { duration: allLegs[0].duration?.text ?? '', distance: allLegs[0].distance?.text ?? '' }
+        : null;
+      onRouteSegmentsRef.current?.(segmentsFromEachActivity, originSegment);
     }
 
     // ── Imperative handle ────────────────────────────────────────────────
@@ -227,6 +271,11 @@ const ItineraryMapInner = forwardRef<MapHandle, Props>(
         });
         markerMapRef.current.clear();
         markerIndexRef.current.clear();
+        hotelMarkerMapRef.current.forEach((m) => {
+          google.maps.event.clearInstanceListeners(m);
+          m.setMap(null);
+        });
+        hotelMarkerMapRef.current.clear();
         if (idleListenerRef.current) {
           google.maps.event.removeListener(idleListenerRef.current);
           idleListenerRef.current = null;
@@ -264,18 +313,27 @@ const ItineraryMapInner = forwardRef<MapHandle, Props>(
       });
       markerMapRef.current.clear();
       markerIndexRef.current.clear();
+      hotelMarkerMapRef.current.forEach((m) => m.setMap(null));
+      hotelMarkerMapRef.current.clear();
       clearRoute();
 
       if (!showMarkers) {
-        onRouteSegmentsRef.current?.([]);
+        hotelOriginOffsetRef.current = 0;
+        activityCountRef.current = 0;
+        onRouteSegmentsRef.current?.([], null);
         return doCleanup;
       }
 
       const valid = activities.filter(
         (a) => typeof a.lat === 'number' && typeof a.lng === 'number',
       );
-      if (!valid.length) {
-        onRouteSegmentsRef.current?.([]);
+      const validHotels = (hotels ?? []).filter(
+        (h) => typeof h.lat === 'number' && typeof h.lng === 'number',
+      );
+      if (!valid.length && !validHotels.length) {
+        hotelOriginOffsetRef.current = 0;
+        activityCountRef.current = 0;
+        onRouteSegmentsRef.current?.([], null);
         return doCleanup;
       }
 
@@ -284,7 +342,7 @@ const ItineraryMapInner = forwardRef<MapHandle, Props>(
       const total     = valid.length;
       const bounds    = new google.maps.LatLngBounds();
 
-      // ── Draw markers ─────────────────────────────────────────────
+      // ── Draw activity markers ────────────────────────────────────
       valid.forEach((act, i) => {
         const pos      = positions[i];
         const isActive = act.id === activeActivityId;
@@ -304,9 +362,32 @@ const ItineraryMapInner = forwardRef<MapHandle, Props>(
         bounds.extend(pos);
       });
 
+      // ── Draw hotel markers (square + 'H' label) ──────────────────
+      validHotels.forEach((h) => {
+        const pos = { lat: h.lat as number, lng: h.lng as number };
+        const marker = new google.maps.Marker({
+          position: pos,
+          map: mapRef.current!,
+          title: h.name ? `🏨 ${h.name}` : '🏨 飯店',
+          zIndex: 500,
+          label: { text: 'H', color: '#ffffff', fontSize: '11px', fontWeight: '700' },
+          icon: makeHotelIcon(dayColor),
+        });
+        marker.addListener('click', () => {
+          marker.setAnimation(google.maps.Animation.BOUNCE);
+          setTimeout(() => marker.setAnimation(null), 1400);
+        });
+        hotelMarkerMapRef.current.set(h.id, marker);
+        bounds.extend(pos);
+      });
+
       // ── fitBounds (full day) with zoom cap ───────────────────────
-      if (valid.length === 1) {
-        mapRef.current.setCenter(positions[0]);
+      const totalMarkers = valid.length + validHotels.length;
+      if (totalMarkers === 1) {
+        const only = valid.length === 1
+          ? positions[0]
+          : { lat: validHotels[0].lat as number, lng: validHotels[0].lng as number };
+        mapRef.current.setCenter(only);
         mapRef.current.setZoom(15);
       } else {
         mapRef.current.fitBounds(bounds, FIT_PADDING);
@@ -323,8 +404,26 @@ const ItineraryMapInner = forwardRef<MapHandle, Props>(
         );
       }
 
-      if (valid.length < 2) {
-        onRouteSegmentsRef.current?.([]);
+      // ── Build route points (hotel origin + activities + hotel destination) ───
+      const roles = resolveHotelRoles(validHotels, dayDate ?? '');
+      const routePoints: Array<{ lat: number; lng: number }> = [];
+      if (roles.origin) routePoints.push({ lat: roles.origin.lat as number, lng: roles.origin.lng as number });
+      routePoints.push(...positions);
+      if (roles.destination) {
+        // Skip destination if it equals origin AND there's no activity in between
+        // (Directions requires at least origin != destination or waypoints.length > 0 to draw a route)
+        const sameAsOrigin = roles.origin && roles.origin.id === roles.destination.id;
+        if (!sameAsOrigin || positions.length > 0) {
+          routePoints.push({ lat: roles.destination.lat as number, lng: roles.destination.lng as number });
+        }
+      }
+
+      // Stash for applyDirectionsResult so它能把 legs 切給 originSegment vs 活動段
+      hotelOriginOffsetRef.current = roles.origin ? 1 : 0;
+      activityCountRef.current = valid.length;
+
+      if (routePoints.length < 2) {
+        onRouteSegmentsRef.current?.([], null);
         return doCleanup;
       }
 
@@ -336,7 +435,10 @@ const ItineraryMapInner = forwardRef<MapHandle, Props>(
       debounceTimer.current = setTimeout(() => {
         if (cancelled || !mapSnapshot) return;
 
-        const fingerprint = waypointKey(valid);
+        const originPt    = routePoints[0];
+        const destPt      = routePoints[routePoints.length - 1];
+        const midPts      = routePoints.slice(1, -1);
+        const fingerprint = waypointKey(originPt, destPt, midPts);
 
         // Cache hit: no API call
         const cached = routeCache.current.get(fingerprint);
@@ -346,14 +448,12 @@ const ItineraryMapInner = forwardRef<MapHandle, Props>(
         }
 
         try {
-          const service   = new google.maps.DirectionsService();
-          const origin    = positions[0];
-          const dest      = positions[positions.length - 1];
-          const midPoints = positions.slice(1, -1).map((p) => ({ location: p, stopover: true }));
+          const service = new google.maps.DirectionsService();
+          const waypoints = midPts.map((p) => ({ location: p, stopover: true }));
 
           service.route(
             {
-              origin, destination: dest, waypoints: midPoints,
+              origin: originPt, destination: destPt, waypoints,
               optimizeWaypoints: false,
               travelMode: google.maps.TravelMode.DRIVING,
             },
@@ -368,9 +468,9 @@ const ItineraryMapInner = forwardRef<MapHandle, Props>(
                 console.warn(`Directions API ${status} — fallback to straight polyline`);
                 clearRoute();
                 polylineLayersRef.current = Array.from(
-                  drawFallbackPolylines(positions, dayColor, mapSnapshot),
+                  drawFallbackPolylines(routePoints, dayColor, mapSnapshot),
                 );
-                onRouteSegmentsRef.current?.([]);
+                onRouteSegmentsRef.current?.([], null);
               }
             },
           );
@@ -379,7 +479,7 @@ const ItineraryMapInner = forwardRef<MapHandle, Props>(
           console.warn('Directions API error — fallback', err);
           clearRoute();
           polylineLayersRef.current = Array.from(
-            drawFallbackPolylines(positions, dayColor, mapSnapshot),
+            drawFallbackPolylines(routePoints, dayColor, mapSnapshot),
           );
           onRouteSegmentsRef.current?.([]);
         }
@@ -388,7 +488,7 @@ const ItineraryMapInner = forwardRef<MapHandle, Props>(
       return doCleanup;
     // activeActivityId excluded: handled by the segment-highlight effect below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activities, showMarkers, dayIndex]);
+    }, [activities, hotels, dayDate, showMarkers, dayIndex]);
 
     // ── Segment-highlight + marker-style effect ──────────────────────────
     //
@@ -425,9 +525,19 @@ const ItineraryMapInner = forwardRef<MapHandle, Props>(
       const legs = dirResult.routes[0]?.legs ?? [];
       if (!legs.length) return;
 
-      // Activity N  → leg N  (outgoing: N → N+1)
-      // Last activity → leg N-1 (arriving: second-to-last → last)
-      const legIndex = activeIndex < legs.length ? activeIndex : legs.length - 1;
+      // routePoints = [origin hotel?, ...activities, destination hotel?]
+      // 有 hotel origin 時，activity 在 routePoints 中的 index 需 +1
+      const roles = dayDate
+        ? resolveHotelRoles((hotels ?? []).filter((h) => h.lat != null && h.lng != null), dayDate)
+        : { origin: undefined as { id: string } | undefined, destination: undefined as { id: string } | undefined };
+      const hotelOriginOffset = roles.origin ? 1 : 0;
+      const indexInRoute = activeIndex + hotelOriginOffset;
+
+      // 若此 activity 在 routePoints 是最後一點（無 outgoing leg）→ 顯示 inbound leg
+      // 否則 → 顯示 outgoing leg（含「最後一個 activity → hotel destination」的情境）
+      const totalPoints = legs.length + 1;
+      const isLastPoint = indexInRoute >= totalPoints - 1;
+      const legIndex = isLastPoint ? legs.length - 1 : indexInRoute;
       const leg = legs[legIndex];
       if (!leg) return;
 
@@ -464,7 +574,7 @@ const ItineraryMapInner = forwardRef<MapHandle, Props>(
     // the main effect which resets dirResult → null, which in turn re-runs this
     // effect.  Adding activities here would cause a redundant extra run.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeActivityId, dirResult, dayIndex]);
+    }, [activeActivityId, dirResult, dayIndex, hotels, dayDate]);
 
     return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />;
   },
@@ -480,10 +590,18 @@ ItineraryMapInner.displayName = 'ItineraryMap';
 function arePropsEqual(prev: Props, next: Props): boolean {
   if (prev.showMarkers       !== next.showMarkers)       return false;
   if (prev.dayIndex          !== next.dayIndex)          return false;
+  if (prev.dayDate           !== next.dayDate)           return false;
   if (prev.activeActivityId  !== next.activeActivityId)  return false;
   if (prev.activities.length !== next.activities.length) return false;
   for (let i = 0; i < prev.activities.length; i++) {
     const a = prev.activities[i], b = next.activities[i];
+    if (a.id !== b.id || a.lat !== b.lat || a.lng !== b.lng) return false;
+  }
+  const prevHotels = prev.hotels ?? [];
+  const nextHotels = next.hotels ?? [];
+  if (prevHotels.length !== nextHotels.length) return false;
+  for (let i = 0; i < prevHotels.length; i++) {
+    const a = prevHotels[i], b = nextHotels[i];
     if (a.id !== b.id || a.lat !== b.lat || a.lng !== b.lng) return false;
   }
   return true; // identical from the map's perspective → skip re-render

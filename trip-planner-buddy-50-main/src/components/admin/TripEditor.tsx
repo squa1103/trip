@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback, Fragment, DragEvent } from 'react';
 import { ArrowLeft, Plus, Trash2, Upload, GripVertical, Users, Luggage, ShoppingCart, Check, X, Clock, ChevronDown } from 'lucide-react';
 import { Trip, DailyItinerary, ActivityCard, HotelInfo, LuggageCategory, ShoppingItem } from '@/types/trip';
+import { hotelsCoveringDay } from '@/lib/hotels';
 import LuggageModal from '@/components/trip/LuggageModal';
 import ShoppingModal from '@/components/trip/ShoppingModal';
 import TripExpensesPanel from '@/components/admin/TripExpensesPanel';
@@ -65,6 +66,8 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
   const [activeActivityId, setActiveActivityId] = useState<string | null>(null);
   /** Travel-time / distance info between consecutive activities (from Directions API). */
   const [routeSegments, setRouteSegments] = useState<RouteSegment[]>([]);
+  /** 飯店 origin → 第一個 activity 那段（由 ItineraryMap 回傳）；無則為 null */
+  const [originSegment, setOriginSegment] = useState<RouteSegment | null>(null);
   const [coverUploading, setCoverUploading] = useState(false);
   /**
    * Stable memoised activities array for the currently visible map day.
@@ -76,6 +79,13 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
     () => mapDayIdx !== null ? (trip.dailyItineraries[mapDayIdx]?.activities ?? []) : [],
     [trip.dailyItineraries, mapDayIdx],
   );
+  /** 當日被 checkIn~checkOut 覆蓋且有座標的飯店；傳給 ItineraryMap 畫 pin 與納入路線。 */
+  const dayHotels = useMemo(() => {
+    if (mapDayIdx === null) return [];
+    const day = trip.dailyItineraries[mapDayIdx];
+    return day ? hotelsCoveringDay(trip.hotels, day.date) : [];
+  }, [trip.hotels, trip.dailyItineraries, mapDayIdx]);
+  const dayDate = mapDayIdx !== null ? trip.dailyItineraries[mapDayIdx]?.date : undefined;
   /** Imperative handle to call panToActivity on the map. */
   const mapHandleRef = useRef<MapHandle | null>(null);
   /** DOM refs for each card so we can scrollIntoView on marker click. */
@@ -274,6 +284,18 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
 
   const updateHotel = (id: string, field: keyof HotelInfo, value: string) => {
     update('hotels', trip.hotels.map((h) => (h.id === id ? { ...h, [field]: value } : h)));
+  };
+
+  /** PlacesAutocomplete 選址時一次寫入地址 + 座標 + placeId，確保飯店可畫在地圖上 */
+  const updateHotelPlace = (id: string, place: PlaceData) => {
+    setTrip((prev) => ({
+      ...prev,
+      hotels: prev.hotels.map((h) =>
+        h.id === id
+          ? { ...h, address: place.address, placeId: place.placeId, lat: place.lat, lng: place.lng }
+          : h,
+      ),
+    }));
   };
 
   const addDay = () => {
@@ -529,7 +551,7 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
               {mapsReady ? (
                 <PlacesAutocomplete
                   initialValue={hotel.address}
-                  onPlaceSelect={(data) => updateHotel(hotel.id, 'address', data.address)}
+                  onPlaceSelect={(data) => updateHotelPlace(hotel.id, data)}
                   onBlur={(value) => updateHotel(hotel.id, 'address', value)}
                   className="flex-1 min-w-0"
                 />
@@ -558,7 +580,7 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
           {trip.dailyItineraries.map((day, dayIdx) => (
             <div key={dayIdx} className="flex items-center gap-1 shrink-0">
               <button
-                onClick={() => { setActiveDayIdx(dayIdx); setMapDayIdx(dayIdx); setActiveActivityId(null); setRouteSegments([]); }}
+                onClick={() => { setActiveDayIdx(dayIdx); setMapDayIdx(dayIdx); setActiveActivityId(null); setRouteSegments([]); setOriginSegment(null); }}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                   activeDayIdx === dayIdx
                     ? 'bg-action text-action-foreground'
@@ -613,10 +635,23 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
                 onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); dragOverActivity.current = { dayIdx: safeIdx, actIdx: activeDay.activities.length }; }}
                 onDrop={(e) => { e.stopPropagation(); handleActivityDrop(e); }}
               >
+                {/* 飯店 origin → 第 1 站 的旅行資訊（有 hotel origin 時才顯示） */}
+                {originSegment && originSegment.duration && (
+                  <div className="flex items-center gap-2 px-2 py-0.5 select-none">
+                    <div className="flex-1 border-t border-dashed border-border/60" />
+                    <span
+                      className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground whitespace-nowrap"
+                      style={{ color: getDayColor(safeIdx) }}
+                    >
+                      🏨 🚗 {originSegment.duration}{originSegment.distance ? ` · ${originSegment.distance}` : ''}
+                    </span>
+                    <div className="flex-1 border-t border-dashed border-border/60" />
+                  </div>
+                )}
                 {activeDay.activities.map((act, actIdx) => {
                   const isExpanded = expandedCards.has(act.id);
-                  const seg = routeSegments[actIdx]; // travel info to the NEXT stop
-                  const hasNextCard = actIdx < activeDay.activities.length - 1;
+                  // 從此站出發到下一點（下一 activity 或 hotel destination）的旅行資訊
+                  const seg = routeSegments[actIdx];
                   return (
                     <Fragment key={act.id}>
                     <div
@@ -706,8 +741,8 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
                         </div>
                       )}
                     </div>
-                    {/* Travel info pill between this card and the next */}
-                    {hasNextCard && seg && (
+                    {/* Travel info pill：此站 → 下一點（下一 activity 或 hotel destination） */}
+                    {seg && seg.duration && (
                       <div className="flex items-center gap-2 px-2 py-0.5 select-none">
                         <div className="flex-1 border-t border-dashed border-border/60" />
                         <span
@@ -736,11 +771,13 @@ const TripEditor = ({ trip: initial, onSave, onCancel, isSaving = false, isNewTr
                   <ItineraryMap
                     ref={mapHandleRef}
                     activities={mapActivities}
+                    hotels={dayHotels}
+                    dayDate={dayDate}
                     showMarkers={mapDayIdx !== null}
                     dayIndex={mapDayIdx ?? safeIdx}
                     activeActivityId={activeActivityId}
                     onMarkerClick={handleMarkerClick}
-                    onRouteSegments={setRouteSegments}
+                    onRouteSegments={(segs, origin) => { setRouteSegments(segs); setOriginSegment(origin); }}
                   />
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">

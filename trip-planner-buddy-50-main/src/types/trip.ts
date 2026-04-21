@@ -54,6 +54,12 @@ export interface HotelInfo {
   checkOut: string;
   address: string;
   confirmationNumber: string;
+  /** Google Places place_id */
+  placeId?: string;
+  /** WGS84 緯度 */
+  lat?: number;
+  /** WGS84 經度 */
+  lng?: number;
 }
 
 export interface DailyItinerary {
