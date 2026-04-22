@@ -4,3 +4,4 @@ supabase
 .env.local.example
 .claude
 04090318.sql
+docs

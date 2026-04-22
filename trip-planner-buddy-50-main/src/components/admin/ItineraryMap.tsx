@@ -47,18 +47,6 @@ const DIRECTIONS_DEBOUNCE_MS = 500;
 const FIT_PADDING            = { top: 72, right: 64, bottom: 72, left: 64 };
 const SEGMENT_FIT_PADDING    = { top: 100, right: 100, bottom: 100, left: 100 };
 
-// ─── Map styles: desaturate + strip POI ──────────────────────────────────────
-
-const MAP_STYLES: google.maps.MapTypeStyle[] = [
-  { featureType: 'all',            elementType: 'all',         stylers: [{ saturation: -75 }] },
-  { featureType: 'administrative', elementType: 'geometry',    stylers: [{ lightness: 20 }] },
-  { featureType: 'poi',            elementType: 'labels',      stylers: [{ visibility: 'off' }] },
-  { featureType: 'poi',            elementType: 'geometry',    stylers: [{ lightness: 10 }] },
-  { featureType: 'road',           elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
-  { featureType: 'transit',        elementType: 'labels',      stylers: [{ visibility: 'simplified' }, { saturation: -80 }] },
-  { featureType: 'water',          elementType: 'geometry',    stylers: [{ lightness: 15 }] },
-];
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function resolvePositions(valid: ActivityCard[]): Array<{ lat: number; lng: number }> {
@@ -294,7 +282,6 @@ const ItineraryMapInner = forwardRef<MapHandle, Props>(
 
       if (!containerRef.current) return doCleanup;
 
-      // Lazy-init map (styles applied once at creation)
       if (!mapRef.current) {
         mapRef.current = new google.maps.Map(containerRef.current, {
           center: { lat: 25.033, lng: 121.565 },
@@ -302,7 +289,7 @@ const ItineraryMapInner = forwardRef<MapHandle, Props>(
           mapTypeControl: false,
           streetViewControl: false,
           fullscreenControl: true,
-          styles: MAP_STYLES,
+          clickableIcons: false,
         });
       }
       google.maps.event.trigger(mapRef.current, 'resize');
